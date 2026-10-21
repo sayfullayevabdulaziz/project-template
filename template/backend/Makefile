@@ -1,4 +1,4 @@
-.PHONY: dev lint fmt test check
+.PHONY: dev lint fmt test check openapi up down migrate migration create-admin
 
 dev:
 	uv run uvicorn app.main:create_app --factory --reload --port 8000
@@ -13,3 +13,22 @@ test:
 	uv run pytest
 
 check: lint test
+
+openapi:
+	uv run python scripts/export_openapi.py
+
+up:
+	docker compose up -d --build --wait
+
+down:
+	docker compose down
+
+migrate:
+	uv run alembic upgrade head
+
+migration:
+	$(if $(m),,$(error m is required: make migration m="message"))
+	uv run alembic revision --autogenerate -m "$(m)"
+
+create-admin:
+	docker compose run --rm api create-admin $(ARGS)
