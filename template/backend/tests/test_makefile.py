@@ -71,11 +71,17 @@ def _service_block(name: str) -> str:
     return match.group(1)
 
 
-def test_non_http_services_disable_inherited_healthcheck() -> None:
+def test_non_http_services_do_not_inherit_http_healthcheck() -> None:
     # Line-based check: PyYAML is not a dependency.
-    for service in ("worker", "scheduler", "migrate"):
+    # migrate is one-shot (disabled); worker/scheduler need a real probe because
+    # `up --wait` rejects services whose healthcheck is disabled.
+    assert re.search(
+        r"^    healthcheck:\n      disable: true$", _service_block("migrate"), re.MULTILINE
+    )
+    for service in ("worker", "scheduler"):
         block = _service_block(service)
-        assert re.search(r"^    healthcheck:\n      disable: true$", block, re.MULTILINE), service
+        assert re.search(r"^      test: \[.*taskiq.*\]$", block, re.MULTILINE), service
+        assert "disable: true" not in block, service
 
 
 def test_published_ports_bind_loopback() -> None:

@@ -67,7 +67,11 @@ services:
     <<: *backend
     command: ["taskiq", "worker", "app.core.broker:broker", "app.users.tasks", "app.auth.tasks"]
     healthcheck:
-      disable: true
+      # `up --wait` rejects services without a healthcheck: probe the process, not :8000.
+      test: ["CMD-SHELL", "grep -aq taskiq /proc/1/cmdline"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -78,7 +82,11 @@ services:
     <<: *backend
     command: ["taskiq", "scheduler", "app.core.broker:scheduler", "app.auth.tasks"]
     healthcheck:
-      disable: true
+      # `up --wait` rejects services without a healthcheck: probe the process, not :8000.
+      test: ["CMD-SHELL", "grep -aq taskiq /proc/1/cmdline"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     depends_on:
       redis:
         condition: service_healthy
