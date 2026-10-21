@@ -123,3 +123,10 @@ def test_quickstart_create_admin_passes_email():
     line = next(x for x in quickstart.splitlines() if x.startswith("make create-admin"))
     assert 'ARGS="--email' in line
     assert 'ARGS="--email' in next(x for x in AGENTS.splitlines() if "`make create-admin" in x)
+
+
+def test_readme_documents_otlp_http_and_no_logs_claim():
+    assert "OTLP HTTP endpoint" in README
+    assert "OTLP gRPC" not in README
+    assert "Grafana (traces, metrics)" in README
+

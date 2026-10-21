@@ -18,7 +18,7 @@ loopback ports. `make migrate` runs Alembic from your host against the compose d
 
 - Admin API docs: http://localhost:8000/api/admin/docs
 - Public API docs: http://localhost:8000/api/v1/docs
-- Grafana (logs, traces, metrics): http://localhost:3000
+- Grafana (traces, metrics): http://localhost:3000
 
 ## Commands
 
@@ -48,7 +48,7 @@ Copy `.env.example` to `.env`. All `APP_*` keys are read by `app.core.config.Set
 | `APP_JWT_SECRET` | JWT signing secret, at least 32 bytes, no default |
 | `APP_COOKIE_SECURE` | `true` marks the refresh cookie `Secure`; must be `true` in deploys |
 | `APP_CORS_ORIGINS` | Comma-separated list of allowed origins |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint for traces and metrics |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint (port 4318) for traces and metrics |
 | `OTEL_SERVICE_NAME` | Service name reported to OpenTelemetry |
 | `FORWARDED_ALLOW_IPS` | Proxy IPs uvicorn trusts for `X-Forwarded-*`; read by uvicorn, not `Settings` |
 
