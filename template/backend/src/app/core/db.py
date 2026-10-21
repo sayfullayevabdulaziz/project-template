@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime
+from typing import Annotated, Any
 
 from fastapi import Request
 from sqlalchemy import DateTime, MetaData, func
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from taskiq import TaskiqDepends
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -52,3 +54,20 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         except BaseException:
             await session.rollback()
             raise
+
+
+async def get_task_session(
+    request: Annotated[Request, TaskiqDepends()],
+) -> AsyncIterator[AsyncSession]:
+    # taskiq-fastapi injects the worker's FastAPI app as the Request; tests override this.
+    async with request.app.state.session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            raise
+
+
+# Param default (not Annotated) keeps kiq() typed without the injected arg; module-level for B008.
+TASK_SESSION: Any = TaskiqDepends(get_task_session)

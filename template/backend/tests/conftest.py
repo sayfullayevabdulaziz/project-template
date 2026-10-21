@@ -2,6 +2,9 @@ import os
 
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("APP_JWT_SECRET", "x" * 40)
+# app.core.broker builds the module-level broker from get_settings() at import time.
+os.environ.setdefault("APP_DATABASE_URL", "postgresql+asyncpg://u:p@localhost/db")
+os.environ.setdefault("APP_REDIS_URL", "redis://localhost:6379/0")
 
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from datetime import timedelta
@@ -13,11 +16,13 @@ from pydantic import SecretStr
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from taskiq import InMemoryBroker
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
 
+from app.core.broker import broker
 from app.core.config import Settings
-from app.core.db import Base, get_session, make_engine, make_session_factory
+from app.core.db import Base, get_session, get_task_session, make_engine, make_session_factory
 from app.core.security import create_access_token, hash_password
 from app.main import create_app
 from app.users.models import Role, User
@@ -98,7 +103,19 @@ def make_user(session: AsyncSession) -> Callable[..., Awaitable[User]]:
 
 
 @pytest.fixture
+async def task_broker(session: AsyncSession) -> AsyncIterator[InMemoryBroker]:
+    # Tasks run in-process against the savepoint session; drain them before it is closed.
+    assert isinstance(broker, InMemoryBroker)
+    broker.dependency_overrides[get_task_session] = lambda: session
+    await broker.startup()
+    yield broker
+    await broker.wait_all()
+    broker.dependency_overrides.pop(get_task_session)
+
+
+@pytest.fixture
 async def app(
+    task_broker: InMemoryBroker,
     session: AsyncSession,
     engine: AsyncEngine,
     redis_client: Redis,

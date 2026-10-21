@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 
 from app import health
 from app.api.surfaces import SURFACES, Surface, generate_unique_id, surface_openapi
+from app.core.broker import broker
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_session_factory
 from app.core.errors import register_error_handlers
@@ -16,14 +17,19 @@ from app.core.errors import register_error_handlers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    # Tests bypass this and set app.state by hand. Broker and telemetry arrive in Tasks 14-15.
+    # Tests bypass this and set app.state by hand. Telemetry arrives in Task 15.
     settings: Settings = app.state.settings
     engine = make_engine(settings.database_url)
     app.state.session_factory = make_session_factory(engine)
     app.state.redis = Redis.from_url(settings.redis_url)
+    # A worker starts the broker itself, then runs this lifespan via taskiq-fastapi.
+    if not broker.is_worker_process:
+        await broker.startup()
     try:
         yield
     finally:
+        if not broker.is_worker_process:
+            await broker.shutdown()
         await app.state.redis.aclose()
         await engine.dispose()
 
