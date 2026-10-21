@@ -118,3 +118,18 @@ async def test_offset_past_total_returns_empty_with_total(
     await seed(session, actor, "a", "b")
     rows, total = await service.list_items(session, params(offset=50))
     assert (rows, total) == ([], 2)
+
+
+@pytest.mark.parametrize("sort", ["name", "-name", "created_at", "-created_at"])
+async def test_ties_page_deterministically(session: AsyncSession, make_user: MakeUser, sort: str):
+    actor = await make_user()
+    same = datetime(2026, 1, 1, tzinfo=UTC)
+    session.add_all(Item(name="same", created_by_id=actor.id, created_at=same) for _ in range(10))
+    await session.flush()
+    ids: list = []
+    for offset in range(10):
+        page = ListParams(limit=1, offset=offset, sort=sort, q=None)
+        rows, total = await service.list_items(session, page)
+        assert total == 10
+        ids += [r.id for r in rows]
+    assert len(set(ids)) == 10

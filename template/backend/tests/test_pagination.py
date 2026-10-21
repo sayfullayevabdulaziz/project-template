@@ -56,8 +56,17 @@ def sql(sort: str) -> str:
 
 
 def test_sort_prefix_minus_means_desc() -> None:
-    assert sql("-name").endswith("ORDER BY pagination_test_thing.name DESC")
-    assert sql("name").endswith("ORDER BY pagination_test_thing.name ASC")
+    assert sql("-name").endswith(
+        "ORDER BY pagination_test_thing.name DESC, pagination_test_thing.id"
+    )
+    assert sql("name").endswith("ORDER BY pagination_test_thing.name ASC, pagination_test_thing.id")
+
+
+def test_sort_has_id_tiebreaker() -> None:
+    # ties across LIMIT/OFFSET pages would otherwise duplicate or skip rows
+    assert sql("-created_at").endswith(
+        "pagination_test_thing.created_at DESC, pagination_test_thing.id"
+    )
 
 
 def test_escape_like() -> None:

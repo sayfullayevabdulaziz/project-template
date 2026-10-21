@@ -44,9 +44,10 @@ def list_params(allowed_sorts: frozenset[str]) -> Callable[..., ListParams]:
     return dependency
 
 
-def apply_sort[S: Select[Any]](stmt: S, model: type, sort: str) -> S:
+def apply_sort[S: Select[Any]](stmt: S, model: Any, sort: str) -> S:
     column = getattr(model, sort.removeprefix("-"))
-    return stmt.order_by(column.desc() if sort.startswith("-") else column.asc())
+    # id tiebreaker: ties would otherwise page nondeterministically (duplicate or skipped rows)
+    return stmt.order_by(column.desc() if sort.startswith("-") else column.asc(), model.id)
 
 
 def escape_like(q: str) -> str:
