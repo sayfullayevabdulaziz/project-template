@@ -122,7 +122,9 @@ async def app(
     postgres_url: str,
     redis_url: str,
 ) -> AsyncIterator[FastAPI]:
+    # _env_file=None: a developer's local .env (cookie_secure=false) must not leak into tests.
     settings = Settings(
+        _env_file=None,
         env="test",
         database_url=postgres_url,
         redis_url=redis_url,
