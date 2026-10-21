@@ -112,3 +112,14 @@ def test_compose_config_validates_when_docker_and_backend_compose_present(ws, tm
         pytest.skip("backend/compose.yaml not generated yet (plan 02)")
     r = subprocess.run(["docker", "compose", "config", "-q"], cwd=ws, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.parametrize("args", [["-n", "check"], ["check"], ["sync-api"]])
+def test_targets_skip_repos_without_makefile(ws, tmp_path, args):
+    # Unchanged generated tree: repo dirs exist but hold only .git (no Makefile).
+    dest = tmp_path / "ws"
+    shutil.copytree(ws, dest)
+    assert (dest / "backend").is_dir() and not (dest / "backend/Makefile").exists()
+    r = make(dest, *args)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.lower().count("skip") >= 2

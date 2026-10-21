@@ -14,9 +14,9 @@ down:
 	docker compose down
 
 sync-api:
-	@if [ -d "backend" ]; then $(MAKE) -C "backend" openapi; else echo "skip: backend/ absent"; fi
-	@if [ -d "frontend" ]; then cp "$(FRONTEND_SPEC_SRC)" "frontend/openapi.json" && $(MAKE) -C "frontend" gen-api; else echo "skip: frontend/ absent"; fi
-	@if [ -d "mobile" ]; then cp "$(MOBILE_SPEC_SRC)" "mobile/openapi.json" && $(MAKE) -C "mobile" gen-api; else echo "skip: mobile/ absent"; fi
+	@if [ -f "backend/Makefile" ]; then $(MAKE) -C "backend" openapi; else echo "skip: backend/Makefile absent"; fi
+	@if [ -f "frontend/Makefile" ]; then cp "$(FRONTEND_SPEC_SRC)" "frontend/openapi.json" && $(MAKE) -C "frontend" gen-api; else echo "skip: frontend/Makefile absent"; fi
+	@if [ -f "mobile/Makefile" ]; then cp "$(MOBILE_SPEC_SRC)" "mobile/openapi.json" && $(MAKE) -C "mobile" gen-api; else echo "skip: mobile/Makefile absent"; fi
 
 check-specs:
 	@rc=0; \
@@ -30,5 +30,5 @@ check-specs:
 
 check: check-specs
 	@for r in $(REPOS); do \
-	  if [ -d "$$r" ]; then $(MAKE) -C "$$r" check || exit 1; else echo "skip: $$r/ absent"; fi; \
+	  if [ -f "$$r/Makefile" ]; then $(MAKE) -C "$$r" check || exit 1; else echo "skip: $$r/Makefile absent"; fi; \
 	done
