@@ -1,0 +1,74 @@
+_min_copier_version: "9.0.0"
+_subdirectory: "template/{{ component }}"
+# _exclude replaces Copier's defaults, so .git and .DS_Store are repeated.
+_exclude:
+  - .git
+  - .DS_Store
+  - .venv
+  - node_modules
+  - uv.lock
+  - pnpm-lock.yaml
+  - pubspec.lock
+  - .dart_tool
+  - build
+  - dist
+  - __pycache__
+  - "*.pyc"
+  - .pytest_cache
+  - .ruff_cache
+  - .ty_cache
+  - .mypy_cache
+  - coverage
+
+# Convention: component-specific questions go below, gated with
+#   when: "{{ component == '<c>' }}"
+# and always carry a default so `--defaults` works.
+
+component:
+  type: str
+  help: Which component to generate
+  choices: [workspace, backend, frontend, mobile]
+  default: workspace
+
+project_name:
+  type: str
+  help: Human-readable project name
+  default: My App
+
+project_slug:
+  type: str
+  help: Kebab-case slug
+  default: "{{ project_name | lower | regex_replace('[^a-z0-9]+', '-') | trim('-') }}"
+  validator: >-
+    {% if not (project_slug | regex_search('^[a-z][a-z0-9-]*$')) %}
+    project_slug must start with a lowercase letter and contain only a-z, 0-9 and "-"
+    {% endif %}
+
+package_name:
+  type: str
+  help: Python/Dart package name
+  default: "{{ project_slug | replace('-', '_') }}"
+
+project_description:
+  type: str
+  help: One-line description
+  default: ""
+
+org_domain:
+  type: str
+  help: Reverse-DNS organisation domain
+  default: com.example
+  validator: >-
+    {% if not (org_domain | regex_search('^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$')) %}
+    org_domain must be reverse DNS, for example com.example
+    {% endif %}
+
+author_name:
+  type: str
+  help: Author name
+  default: ""
+
+author_email:
+  type: str
+  help: Author email
+  default: ""
