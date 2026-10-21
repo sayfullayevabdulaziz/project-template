@@ -73,11 +73,11 @@ async def test_patch_self_deactivate_409(admin_client: httpx.AsyncClient, make_u
     assert r.status_code == 409
 
 
-async def test_patch_last_active_admin_409(admin_client: httpx.AsyncClient, make_user: MakeUser):
-    # Second admin is inactive, so the target is the only active admin.
-    await make_user("inactive-admin@example.com", role=Role.admin, is_active=False)
+# The last-admin rule is covered at service level only (tests/users/test_service.py).
+async def test_patch_sole_admin_self_409(admin_client: httpx.AsyncClient):
     r = await admin_client.patch(f"{BASE}/{await my_id(admin_client)}", json={"role": "user"})
     assert r.status_code == 409
+    assert "yourself" in r.json()["detail"]
 
 
 async def test_patch_unknown_user_404(admin_client: httpx.AsyncClient):
