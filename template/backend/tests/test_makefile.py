@@ -62,3 +62,28 @@ def test_dockerfile_non_root_and_healthcheck() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "USER app" in dockerfile
     assert "HEALTHCHECK" in dockerfile
+
+
+def _service_block(name: str) -> str:
+    compose = (ROOT / "compose.yaml").read_text()
+    match = re.search(rf"^  {re.escape(name)}:\n((?:    .*\n|\n)*)", compose, re.MULTILINE)
+    assert match, name
+    return match.group(1)
+
+
+def test_non_http_services_disable_inherited_healthcheck() -> None:
+    # Line-based check: PyYAML is not a dependency.
+    for service in ("worker", "scheduler", "migrate"):
+        block = _service_block(service)
+        assert re.search(r"^    healthcheck:\n      disable: true$", block, re.MULTILINE), service
+
+
+def test_published_ports_bind_loopback() -> None:
+    compose = (ROOT / "compose.yaml").read_text()
+    ports = [
+        item
+        for block in re.findall(r"^    ports:\n((?:      - .*\n)+)", compose, re.MULTILINE)
+        for item in re.findall(r'- "(.*)"', block)
+    ]
+    assert len(ports) == 6
+    assert all(p.startswith("127.0.0.1:") for p in ports), ports
