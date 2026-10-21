@@ -1,13 +1,17 @@
 import uuid
-from collections.abc import Awaitable, Callable, MutableMapping
+from collections.abc import AsyncGenerator, Awaitable, Callable, MutableMapping
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import httpx
+import pytest
+from fastapi import Request
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from structlog.testing import capture_logs
 from taskiq import InMemoryBroker
+from taskiq.middlewares import SimpleRetryMiddleware
 from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_redis import RedisStreamBroker
 
@@ -15,6 +19,7 @@ from app.auth.models import RefreshToken
 from app.auth.tasks import purge_expired_refresh_tokens
 from app.core.broker import broker, build_broker
 from app.core.config import Settings
+from app.core.db import get_task_session
 from app.users.models import User
 from app.users.tasks import send_welcome_email
 
@@ -38,6 +43,12 @@ def test_build_broker_test_env_is_inmemory():
 
 def test_build_broker_prod_is_redis_stream():
     assert isinstance(build_broker(_settings("prod")), RedisStreamBroker)
+
+
+def test_prod_broker_has_retry_middleware():
+    # retry_on_error/max_retries labels are inert without it
+    middlewares = build_broker(_settings("prod")).middlewares
+    assert any(isinstance(m, SimpleRetryMiddleware) for m in middlewares)
 
 
 def _events(logs: list[MutableMapping[str, Any]], name: str) -> list[MutableMapping[str, Any]]:
@@ -75,6 +86,68 @@ async def test_register_enqueues_welcome_email(
     # the event is only logged when the task found the committed user row
     [event] = _events(logs, "send_welcome_email")
     assert event["user_id"] == r.json()["id"]
+
+
+async def test_register_commits_before_enqueueing(
+    task_broker: InMemoryBroker,
+    anon_client: httpx.AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # The task shares the request's session here, so only call ordering can prove the worker
+    # (a separate connection in production) would see the row.
+    calls: list[str] = []
+    real_commit = session.commit
+
+    async def spy_commit() -> None:
+        await real_commit()
+        calls.append("commit")
+
+    monkeypatch.setattr(session, "commit", spy_commit)
+    real_kiq = send_welcome_email.kiq
+
+    async def spy(*args: Any, **kwargs: Any) -> Any:
+        calls.append("kiq")
+        return await real_kiq(*args, **kwargs)
+
+    monkeypatch.setattr(send_welcome_email, "kiq", spy)
+    r = await anon_client.post(
+        "/api/v1/users/register",
+        json={"email": "order@example.com", "password": "correct horse battery"},
+    )
+    assert r.status_code == 201
+    assert calls == ["commit", "kiq"]
+
+
+def _fake_request(factory: async_sessionmaker[AsyncSession]) -> Request:
+    state = SimpleNamespace(session_factory=factory)
+    return cast(Request, SimpleNamespace(app=SimpleNamespace(state=state)))
+
+
+async def test_get_task_session_commits_on_success(
+    committed_session_factory: async_sessionmaker[AsyncSession],
+):
+    request = _fake_request(committed_session_factory)
+    gen = get_task_session(request)
+    (await anext(gen)).add(User(email="task@example.com", password_hash="x"))
+    with pytest.raises(StopAsyncIteration):  # normal exit: the dependency commits
+        await anext(gen)
+    async with committed_session_factory() as fresh:
+        assert await fresh.scalar(select(User.email)) == "task@example.com"
+
+
+async def test_get_task_session_rolls_back_on_error(
+    committed_session_factory: async_sessionmaker[AsyncSession],
+):
+    request = _fake_request(committed_session_factory)
+    gen = get_task_session(request)
+    s = await anext(gen)
+    s.add(User(email="task@example.com", password_hash="x"))
+    await s.flush()
+    with pytest.raises(RuntimeError):
+        await cast(AsyncGenerator[AsyncSession], gen).athrow(RuntimeError())
+    async with committed_session_factory() as fresh:
+        assert await fresh.scalar(select(User.email)) is None
 
 
 async def test_purge_expired_refresh_tokens_task(
