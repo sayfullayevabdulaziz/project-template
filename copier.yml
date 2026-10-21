@@ -72,3 +72,33 @@ author_email:
   type: str
   help: Author email
   default: you@example.com
+
+# Tasks run on copy only (never on update), once per component repo.
+# List form: Jinja renders each element, so no shell quoting of answers.
+_tasks:
+  - command: ["git", "init", "-b", "main"]
+    when: "{{ _copier_operation == 'copy' and component == 'backend' }}"
+  - command: ["sh", "-c", "[ ! -f pyproject.toml ] || uv lock"]
+    when: "{{ _copier_operation == 'copy' and component == 'backend' }}"
+  - command: ["git", "add", "-A"]
+    when: "{{ _copier_operation == 'copy' and component == 'backend' }}"
+  - command: ["git", "-c", "user.name={{ author_name }}", "-c", "user.email={{ author_email }}", "commit", "--allow-empty", "-m", "chore: initial commit"]
+    when: "{{ _copier_operation == 'copy' and component == 'backend' }}"
+
+  - command: ["git", "init", "-b", "main"]
+    when: "{{ _copier_operation == 'copy' and component == 'frontend' }}"
+  - command: ["sh", "-c", "[ ! -f package.json ] || pnpm install"]
+    when: "{{ _copier_operation == 'copy' and component == 'frontend' }}"
+  - command: ["git", "add", "-A"]
+    when: "{{ _copier_operation == 'copy' and component == 'frontend' }}"
+  - command: ["git", "-c", "user.name={{ author_name }}", "-c", "user.email={{ author_email }}", "commit", "--allow-empty", "-m", "chore: initial commit"]
+    when: "{{ _copier_operation == 'copy' and component == 'frontend' }}"
+
+  - command: ["git", "init", "-b", "main"]
+    when: "{{ _copier_operation == 'copy' and component == 'mobile' }}"
+  - command: ["sh", "-c", "if command -v flutter >/dev/null 2>&1 && [ -f Makefile ]; then make bootstrap; else echo 'WARNING: flutter not found (or no Makefile); run make bootstrap in mobile/ later'; fi"]
+    when: "{{ _copier_operation == 'copy' and component == 'mobile' }}"
+  - command: ["git", "add", "-A"]
+    when: "{{ _copier_operation == 'copy' and component == 'mobile' }}"
+  - command: ["git", "-c", "user.name={{ author_name }}", "-c", "user.email={{ author_email }}", "commit", "--allow-empty", "-m", "chore: initial commit"]
+    when: "{{ _copier_operation == 'copy' and component == 'mobile' }}"
