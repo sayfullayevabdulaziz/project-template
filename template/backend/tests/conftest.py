@@ -7,11 +7,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
 
-from app.core.db import Base, make_engine
+from app.core.db import Base, make_engine, make_session_factory
 from app.core.security import hash_password
 from app.users.models import Role, User
 
@@ -53,6 +54,17 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         async with AsyncSession(bind=conn, join_transaction_mode="create_savepoint") as s:
             yield s
         await outer.rollback()
+
+
+@pytest.fixture
+async def committed_session_factory(
+    engine: AsyncEngine,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    # For tests that need real commits and concurrent sessions (row locks); cleans up by truncating.
+    yield make_session_factory(engine)
+    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    async with engine.begin() as conn:
+        await conn.execute(text(f"TRUNCATE {tables} CASCADE"))
 
 
 @pytest.fixture(autouse=True)
