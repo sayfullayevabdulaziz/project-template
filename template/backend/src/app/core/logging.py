@@ -40,7 +40,11 @@ def configure_logging(level: str = "INFO") -> None:
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
             # Records from stdlib loggers skip the structlog chain, so run the shared part here.
-            foreign_pre_chain=[structlog.stdlib.add_logger_name, *shared],
+            foreign_pre_chain=[
+                structlog.stdlib.add_logger_name,
+                *shared,
+                structlog.processors.format_exc_info,
+            ],
             processors=[
                 structlog.stdlib.ProcessorFormatter.remove_processors_meta,
                 structlog.processors.JSONRenderer(),

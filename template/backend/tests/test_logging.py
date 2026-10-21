@@ -59,3 +59,15 @@ def test_configure_logging_is_idempotent(capsys: pytest.CaptureFixture[str]) -> 
     configure_logging()
     structlog.get_logger().info("once")
     assert len(capsys.readouterr().out.strip().splitlines()) == 1
+
+
+def test_stdlib_exception_keeps_traceback_text(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging()
+    try:
+        raise ValueError("boom detail")
+    except ValueError:
+        logging.getLogger("uvicorn.error").exception("Exception in ASGI application")
+    out = _last_json(capsys)
+    assert isinstance(out["exception"], str)
+    assert "Traceback (most recent call last)" in out["exception"]
+    assert "ValueError: boom detail" in out["exception"]

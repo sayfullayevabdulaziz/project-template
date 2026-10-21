@@ -57,6 +57,21 @@ def test_tag_surface_counter_has_attribute(monkeypatch: pytest.MonkeyPatch) -> N
     assert point.value == 2
 
 
+def test_tag_surface_does_not_grow_proxy_instruments_per_call() -> None:
+    # With no endpoint the global provider stays the proxy, which keeps every instrument.
+    proxy = metrics_internal._PROXY_METER_PROVIDER
+    dep = tag_surface("admin")
+
+    def size() -> tuple[int, int]:
+        return len(proxy._meters), sum(len(m._instruments) for m in proxy._meters)
+
+    dep()
+    before = size()
+    for _ in range(50):
+        dep()
+    assert size() == before
+
+
 @pytest.mark.parametrize(("router", "name"), [(admin_router, "admin"), (public_router, "public")])
 def test_surface_dependency_on_routers(
     router: APIRouter,
