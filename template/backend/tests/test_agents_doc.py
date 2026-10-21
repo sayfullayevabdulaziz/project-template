@@ -130,3 +130,7 @@ def test_readme_documents_otlp_http_and_no_logs_claim():
     assert "OTLP gRPC" not in README
     assert "Grafana (traces, metrics)" in README
 
+
+def test_readme_deploy_section_requires_prod_env():
+    deploy = README.split("## Deploy", 1)[1]
+    assert "APP_ENV=prod" in deploy

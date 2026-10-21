@@ -57,6 +57,8 @@ Copy `.env.example` to `.env`. All `APP_*` keys are read by `app.core.config.Set
 - Serve the admin frontend and this API from the same site behind one reverse proxy. The refresh
   cookie is `SameSite=Strict`, so a cross-site admin origin cannot use it.
 - Set `FORWARDED_ALLOW_IPS` to the reverse proxy IPs so client IPs (rate limiting) are correct.
+- Set `APP_ENV=prod` in a deployed environment. In dev, the API docs and OpenAPI JSON are served
+  without authentication.
 - Set `APP_COOKIE_SECURE=true` and serve over HTTPS.
 - Run `make migrate` (or the compose `migrate` service) before starting a new version.
 - Run the worker and scheduler as separate processes next to the API.
