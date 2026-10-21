@@ -93,3 +93,14 @@ def test_published_ports_bind_loopback() -> None:
     ]
     assert len(ports) == 6
     assert all(p.startswith("127.0.0.1:") for p in ports), ports
+
+
+def test_otlp_endpoints_use_http_port() -> None:
+    # telemetry.py uses the OTLP/HTTP exporters: 4317 is gRPC and resets those connections.
+    for name in ("compose.yaml", ".env.example"):
+        line = next(
+            ln
+            for ln in (ROOT / name).read_text().splitlines()
+            if "OTEL_EXPORTER_OTLP_ENDPOINT" in ln
+        )
+        assert line.rstrip().endswith(":4318"), name
