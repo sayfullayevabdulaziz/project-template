@@ -18,7 +18,7 @@ fi
 case "$file" in *.py) ;; *) exit 0 ;; esac
 
 case "$file" in /*) ;; *) file="$root/$file" ;; esac
-[ -f "$file" ] || exit 0
+[ -f "$file" ] && [ ! -L "$file" ] || exit 0 # a symlinked file may point outside the repo
 
 # Canonicalize (resolves symlinks and ..) so the inside-repo check cannot be dodged.
 dir=$(cd "$(dirname "$file")" 2>/dev/null && pwd -P) || exit 0

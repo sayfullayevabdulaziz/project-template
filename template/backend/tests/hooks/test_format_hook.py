@@ -61,3 +61,12 @@ def test_exit_zero_on_garbage_stdin(stdin: str) -> None:
 
 def test_exit_zero_when_file_missing(tmp_inside_repo: Path) -> None:
     assert run_hook(payload(tmp_inside_repo / "missing.py")).returncode == 0
+
+
+def test_ignores_symlinked_python_file(tmp_inside_repo: Path, tmp_path: Path) -> None:
+    target = tmp_path / "target.py"
+    target.write_text(UGLY)
+    link = tmp_inside_repo / "link.py"
+    link.symlink_to(target)
+    assert run_hook(payload(link)).returncode == 0
+    assert target.read_text() == UGLY
