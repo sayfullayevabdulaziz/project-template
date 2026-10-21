@@ -1,0 +1,33 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test-template:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: nested copier copies check out the committed HEAD of this repo.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: uv tool install copier
+      - name: Git identity
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+      - run: make test
+      - run: make test-template OUT="$RUNNER_TEMP/demo" REPOS="backend frontend"
+      - name: Detect mobile pubspec
+        id: mobile
+        run: '[ -f "$RUNNER_TEMP/demo/app/mobile/pubspec.yaml" ] && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"'
+      - if: steps.mobile.outputs.present == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: ${{ runner.temp }}/demo/app/mobile/pubspec.yaml
+      - if: steps.mobile.outputs.present == 'true'
+        run: make -C "$RUNNER_TEMP/demo/app/mobile" bootstrap check
