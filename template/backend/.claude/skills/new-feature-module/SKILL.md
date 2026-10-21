@@ -7,10 +7,10 @@ description: Scaffold a new backend feature module (model, schemas, service, per
 
 Mirror `src/app/items/`. Replace `<mod>` with the module name.
 
-1. Create `src/app/<mod>/` with `__init__.py`, `models.py`, `schemas.py`, `service.py`, and one `api_<surface>.py` per surface needed.
+1. Create `src/app/<mod>/` with `__init__.py`, `models.py`, `schemas.py`, `service.py`, and one `api_<surface>.py` plus `schemas_<surface>.py` per surface needed.
 2. `models.py`: the SQLAlchemy model on `Base`. Import it in `src/app/core/models.py` so Alembic and the test fixtures see it.
-3. `schemas.py`: separate schemas per surface (for example `<Mod>Admin`, `<Mod>Public`, `<Mod>Create`, `<Mod>Update`). Never reuse an admin schema on the public surface.
-4. `service.py`: all logic and queries, taking an `AsyncSession`. Routers contain no business logic.
+3. Schemas: `schemas_admin.py` holds `<Mod>Admin`, `<Mod>Create`, `<Mod>Update`; `schemas_public.py` holds `<Mod>Public`. `schemas.py` holds only field types and classes used by two or more surfaces. `api_<surface>.py` imports only its own `schemas_<surface>.py`; `tests/test_schema_boundaries.py` fails otherwise.
+4. `service.py`: all logic and queries, taking an `AsyncSession` and plain values (not surface schemas), as `items/service.py` does. Routers contain no business logic.
 5. `api_admin.py` / `api_public.py`: thin routers with `prefix`, `tags=["<mod>"]`, and documented error `responses`. Follow `items/api_admin.py`.
 6. Register routers. Admin: include in the `protected` router in `src/app/api/admin.py` (behind `require_admin`). Public: include in `src/app/api/public.py`.
 7. Create the migration with the `db-migration` skill.

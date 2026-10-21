@@ -7,7 +7,7 @@ from app.core.db import SessionDep
 from app.core.deps import CurrentUser
 from app.core.pagination import ListParams, list_params
 from app.users import service
-from app.users.schemas import UserAdmin, UserAdminPage, UserAdminUpdate
+from app.users.schemas_admin import UserAdmin, UserAdminPage, UserAdminUpdate
 
 router = APIRouter(
     prefix="/users",

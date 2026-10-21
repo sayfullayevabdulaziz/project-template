@@ -1,22 +1,34 @@
+import importlib
+from pathlib import Path
 from uuid import uuid7
 
 import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import iter_route_contexts
+from pydantic import BaseModel
 
 from app.api.surfaces import SURFACES, surface_openapi
 
 SURFACE = {s.name: s for s in SURFACES}
 AUTH_EXEMPT = {"auth-login", "auth-refresh", "auth-logout"}
-ADMIN_SCHEMAS = {
-    "ItemAdmin",
-    "UserAdmin",
-    "AdminTokenResponse",
-    "ItemAdminPage",
-    "UserAdminPage",
-    "UserAdminUpdate",
-}
+
+
+def admin_schema_names() -> set[str]:
+    # Every model defined in an app/<module>/schemas_admin.py, so new modules are covered as added.
+    names = set()
+    for path in (Path(__file__).parent.parent / "src" / "app").glob("*/schemas_admin.py"):
+        module = importlib.import_module(f"app.{path.parent.name}.schemas_admin")
+        names |= {
+            name
+            for name, obj in vars(module).items()
+            if isinstance(obj, type)
+            and issubclass(obj, BaseModel)
+            and obj.__module__ == module.__name__
+        }
+    return names
+
+
 CONTRACT = {
     "admin": {
         "auth-login",
@@ -82,8 +94,10 @@ def test_public_json_has_no_admin_path(app: FastAPI):
 
 
 def test_public_spec_has_no_admin_schemas(app: FastAPI):
+    admin = admin_schema_names()
+    assert {"ItemAdmin", "ItemCreate", "UserAdmin", "AdminTokenResponse"} <= admin
     spec = surface_openapi(app, SURFACE["public"])
-    assert not ADMIN_SCHEMAS & set(spec["components"]["schemas"])
+    assert not admin & set(spec["components"]["schemas"])
 
 
 @pytest.mark.parametrize("name", ["admin", "public"])

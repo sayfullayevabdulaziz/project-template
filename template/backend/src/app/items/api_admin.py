@@ -7,7 +7,7 @@ from app.core.db import SessionDep
 from app.core.deps import CurrentUser
 from app.core.pagination import ListParams, list_params
 from app.items import service
-from app.items.schemas import ItemAdmin, ItemAdminPage, ItemCreate, ItemUpdate
+from app.items.schemas_admin import ItemAdmin, ItemAdminPage, ItemCreate, ItemUpdate
 
 router = APIRouter(
     prefix="/items",
@@ -38,12 +38,20 @@ async def get(item_id: UUID, session: Session) -> ItemAdmin:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create(body: ItemCreate, session: Session, actor: CurrentUser) -> ItemAdmin:
-    return ItemAdmin.model_validate(await service.create(session, actor, body))
+    item = await service.create(
+        session,
+        actor,
+        name=body.name,
+        description=body.description,
+        is_published=body.is_published,
+    )
+    return ItemAdmin.model_validate(item)
 
 
 @router.patch("/{item_id}", responses=NOT_FOUND)
 async def update(item_id: UUID, body: ItemUpdate, session: Session) -> ItemAdmin:
-    return ItemAdmin.model_validate(await service.update(session, item_id, body))
+    item = await service.update(session, item_id, body.model_dump(exclude_unset=True))
+    return ItemAdmin.model_validate(item)
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, responses=NOT_FOUND)

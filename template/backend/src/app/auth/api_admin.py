@@ -4,7 +4,8 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from redis.asyncio import Redis
 
 from app.auth import service
-from app.auth.schemas import AdminTokenResponse, LoginRequest
+from app.auth.schemas import LoginRequest
+from app.auth.schemas_admin import AdminTokenResponse
 from app.core.config import Settings
 from app.core.db import SessionDep
 from app.core.deps import get_settings_dep

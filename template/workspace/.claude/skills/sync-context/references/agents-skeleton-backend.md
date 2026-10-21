@@ -34,7 +34,7 @@ Domain modules own models, business logic and invariants. Surfaces own HTTP shap
 
 - `src/app/api/surfaces.py` is the surface registry: `(name, prefix, router)`. `main.py` mounts from it.
 - Business logic lives only in `<module>/service.py`. Surface files parse, authorize, call the service, map to that surface's schema.
-- Response schemas are per surface (`ItemAdmin`, `ItemPublic`). A field reaches the public surface only by being added to the public schema.
+- Schemas are per surface, next to the router: `<module>/schemas_<surface>.py` (`ItemAdmin`, `ItemPublic`). A field reaches the public surface only by being added to the public schema. `<module>/schemas.py` holds only field types and classes shared by two or more surfaces.
 - `src/app/core/` holds config, db, security, deps, errors, logging, telemetry and the broker.
 - `openapi/` holds the committed specs. Clients copy them.
 

@@ -9,7 +9,6 @@ from app.core.errors import NotFound
 from app.core.pagination import ListParams
 from app.items import service
 from app.items.models import Item
-from app.items.schemas import ItemCreate, ItemUpdate
 from app.users.models import User
 
 MakeUser = Callable[..., Awaitable[User]]
@@ -38,7 +37,7 @@ async def test_create_sets_creator_and_defaults_unpublished(
     session: AsyncSession, make_user: MakeUser
 ):
     actor = await make_user()
-    item = await service.create(session, actor, ItemCreate(name="a"))
+    item = await service.create(session, actor, name="a")
     assert item.created_by_id == actor.id
     assert item.is_published is False
     assert item.description is None
@@ -47,22 +46,22 @@ async def test_create_sets_creator_and_defaults_unpublished(
 
 async def test_update_partial_keeps_other_fields(session: AsyncSession, make_user: MakeUser):
     actor = await make_user()
-    item = await service.create(session, actor, ItemCreate(name="a", description="d"))
-    updated = await service.update(session, item.id, ItemUpdate(is_published=True))
+    item = await service.create(session, actor, name="a", description="d")
+    updated = await service.update(session, item.id, {"is_published": True})
     assert (updated.name, updated.description, updated.is_published) == ("a", "d", True)
 
 
 async def test_update_can_set_description_null(session: AsyncSession, make_user: MakeUser):
     actor = await make_user()
-    item = await service.create(session, actor, ItemCreate(name="a", description="d"))
-    updated = await service.update(session, item.id, ItemUpdate(description=None))
+    item = await service.create(session, actor, name="a", description="d")
+    updated = await service.update(session, item.id, {"description": None})
     assert updated.description is None
     assert updated.name == "a"
 
 
 async def test_delete_hard_deletes(session: AsyncSession, make_user: MakeUser):
     actor = await make_user()
-    item = await service.create(session, actor, ItemCreate(name="a"))
+    item = await service.create(session, actor, name="a")
     await service.delete(session, item.id)
     assert await session.get(Item, item.id) is None
     with pytest.raises(NotFound):
@@ -84,7 +83,7 @@ async def test_list_published_only_flag(session: AsyncSession, make_user: MakeUs
 
 async def test_get_published_only_hides_unpublished(session: AsyncSession, make_user: MakeUser):
     actor = await make_user()
-    item = await service.create(session, actor, ItemCreate(name="a"))
+    item = await service.create(session, actor, name="a")
     assert (await service.get(session, item.id)).id == item.id
     with pytest.raises(NotFound):
         await service.get(session, item.id, published_only=True)

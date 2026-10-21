@@ -7,7 +7,7 @@ from app.core.db import SessionDep
 from app.core.deps import get_current_user
 from app.core.pagination import ListParams, list_params
 from app.items import service
-from app.items.schemas import ItemPublic, ItemPublicPage
+from app.items.schemas_public import ItemPublic, ItemPublicPage
 
 router = APIRouter(
     prefix="/items",
