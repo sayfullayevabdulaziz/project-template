@@ -10,7 +10,7 @@ cp .env.example .env
 # set APP_JWT_SECRET (at least 32 bytes): openssl rand -hex 32
 make up
 make migrate
-make create-admin
+make create-admin ARGS="--email you@example.com"   # prompts for the password (hidden)
 ```
 
 `make up` builds and starts db, redis, Grafana (otel-lgtm), api, worker and scheduler on
@@ -34,7 +34,7 @@ loopback ports. `make migrate` runs Alembic from your host against the compose d
 | `make down` | Stop the compose stack |
 | `make migrate` | Apply migrations (`alembic upgrade head`) |
 | `make migration m="message"` | Autogenerate a new migration |
-| `make create-admin` | Create an admin user (`ARGS="..."` is passed through) |
+| `make create-admin ARGS="--email you@example.com"` | Create an admin user; `--email` is required, the password is prompted |
 
 ## Environment
 

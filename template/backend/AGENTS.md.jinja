@@ -26,7 +26,7 @@ Copy `.env.example` to `.env` first; `APP_JWT_SECRET` has no default and must be
 - `make openapi`: regenerate `openapi/admin.json` and `openapi/public.json`.
 - `make up` / `make down`: start or stop the full compose stack (db, redis, otel-lgtm, migrate, api, worker, scheduler).
 - `make migrate`: `alembic upgrade head`. `make migration m="add widgets"`: autogenerate a revision.
-- `make create-admin`: create the first admin user (pass `ARGS="--email ..."`).
+- `make create-admin`: create the first admin: `make create-admin ARGS="--email you@example.com"` (`--email` is required; the password is prompted, hidden).
 - `uv run alembic downgrade -1`, `uv run alembic history`: inspect or step back migrations.
 - `uv run taskiq worker app.core.broker:broker app.users.tasks app.auth.tasks`: run a worker.
 - `uv run taskiq scheduler app.core.broker:scheduler app.auth.tasks`: run the scheduler.
@@ -48,8 +48,9 @@ One package per domain module under `src/app/<module>/`, each exposing one route
   `SURFACES` registry (admin at `/api/admin`, public at `/api/v1`) and `surface_openapi`, which
   builds one OpenAPI document per surface.
 - `make openapi` writes `openapi/admin.json` (consumed by `frontend/`) and `openapi/public.json`
-  (consumed by `mobile/`). Change order: backend first, then `make openapi`, then `sync-api`
-  from the repo root, then the clients. Commit the regenerated specs with the change.
+  (consumed by `mobile/`). Change order: backend first, then `make openapi`, then
+  `make sync-api` from the workspace root (a workspace target, not in this repo's Makefile; skip it
+  when this backend is used standalone), then the clients. Commit the regenerated specs with the change.
 - Background work goes through taskiq tasks in `<module>/tasks.py`; register new task modules on the worker and scheduler commands in `compose.yaml`.
 - Add a module with the `new-feature-module` skill; it registers the module on both surfaces.
 

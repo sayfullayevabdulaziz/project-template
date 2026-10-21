@@ -52,7 +52,9 @@ def test_every_make_target_in_commands_exists():
     declared = set(re.search(r"^\.PHONY: (.+)$", MAKEFILE, re.M).group(1).split())  # ty: ignore[unresolved-attribute]
     used = set(re.findall(r"`make ([a-z-]+)", AGENTS + README))
     assert used, "no make targets documented"
-    assert used <= declared, used - declared
+    # sync-api is a workspace-root target documented on purpose; it is not in this Makefile.
+    assert used - {"sync-api"} <= declared, used - {"sync-api"} - declared
+    assert "workspace root" in AGENTS
     assert declared <= set(re.findall(r"`make ([a-z-]+)", AGENTS)), "AGENTS omits a target"
 
 
@@ -114,3 +116,10 @@ def test_readme_deploy_and_urls():
         "FORWARDED_ALLOW_IPS",
     ):
         assert needle in README, needle
+
+
+def test_quickstart_create_admin_passes_email():
+    quickstart = README.split("## Quickstart")[1].split("## Commands")[0]
+    line = next(x for x in quickstart.splitlines() if x.startswith("make create-admin"))
+    assert 'ARGS="--email' in line
+    assert 'ARGS="--email' in next(x for x in AGENTS.splitlines() if "`make create-admin" in x)
