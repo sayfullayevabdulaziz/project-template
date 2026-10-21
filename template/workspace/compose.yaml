@@ -1,0 +1,17 @@
+include:
+  - backend/compose.yaml
+
+services:
+  admin:
+    image: node:24
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # anonymous volume keeps host node_modules out
+    ports:
+      - "5173:5173"
+    environment:
+      API_PROXY_TARGET: http://api:8000
+    command: sh -c "corepack enable && pnpm install && pnpm dev --host"
+    depends_on:
+      - api
