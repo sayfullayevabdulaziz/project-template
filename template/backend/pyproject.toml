@@ -25,6 +25,9 @@ dependencies = [
     "pyjwt>=2.15,<2.16",
 ]
 
+[project.scripts]
+create-admin = "app.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=9.1,<9.2",
