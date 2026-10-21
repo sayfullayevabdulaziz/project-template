@@ -102,3 +102,24 @@ _tasks:
     when: "{{ _copier_operation == 'copy' and component == 'mobile' }}"
   - command: ["git", "-c", "user.name={{ author_name }}", "-c", "user.email={{ author_email }}", "commit", "--allow-empty", "-m", "chore: initial commit"]
     when: "{{ _copier_operation == 'copy' and component == 'mobile' }}"
+
+  - command: ["sh", "-c", "case \"$1\" in /*|*://*|gh:*|git@*) ;; *) echo 'ERROR: template source must be an absolute path or URL, got: '\"$1\" >&2; exit 1;; esac", "sh", "{{ _copier_answers._src_path }}"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+  - command: ["git", "init", "-b", "main"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=backend", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "{{ _copier_answers._src_path }}", "backend"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=frontend", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "{{ _copier_answers._src_path }}", "frontend"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=mobile", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "{{ _copier_answers._src_path }}", "mobile"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+  - command: ["git", "add", "-A"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+  - command: ["git", "-c", "user.name={{ author_name }}", "-c", "user.email={{ author_email }}", "commit", "--allow-empty", "-m", "chore: initial commit"]
+    when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
+
+_message_after_update: |
+  Template updated. Lockfiles are not managed by the template; relock in each repo you updated:
+    backend/   uv lock
+    frontend/  pnpm install
+    mobile/    flutter pub get

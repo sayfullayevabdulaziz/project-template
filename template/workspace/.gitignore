@@ -1,0 +1,5 @@
+/backend
+/frontend
+/mobile
+.DS_Store
+.env
