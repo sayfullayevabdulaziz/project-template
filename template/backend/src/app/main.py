@@ -13,13 +13,17 @@ from app.core.broker import broker
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_session_factory
 from app.core.errors import register_error_handlers
+from app.core.logging import configure_logging
+from app.core.telemetry import setup_telemetry, telemetry_config
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    # Tests bypass this and set app.state by hand. Telemetry arrives in Task 15.
+    # Tests bypass this and set app.state by hand.
     settings: Settings = app.state.settings
+    configure_logging()
     engine = make_engine(settings.database_url)
+    setup_telemetry(settings, engine)
     app.state.session_factory = make_session_factory(engine)
     app.state.redis = Redis.from_url(settings.redis_url)
     # A worker starts the broker itself, then runs this lifespan via taskiq-fastapi.
@@ -56,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         generate_unique_id_function=generate_unique_id,
         lifespan=lifespan,
+        telemetry=telemetry_config(),
     )
     app.state.settings = settings
     register_error_handlers(app)
