@@ -86,3 +86,13 @@ def test_component_question_gating(tmp_path):
     r = generate(tpl, be, component="backend", extra={"backend_only": "x"})
     assert r.returncode == 0, r.stderr
     assert answers(be)["backend_only"] == "x"
+
+
+def test_author_identity_defaults_are_non_empty(tmp_path):
+    tpl = make_template(tmp_path)
+    dest = tmp_path / "out"
+    r = run_copier(["copy", "--trust", "--defaults", "--vcs-ref", "HEAD", str(tpl), str(dest)], cwd=tmp_path)
+    assert r.returncode == 0, r.stderr
+    a = answers(dest)
+    assert a["author_name"] == "Your Name"
+    assert a["author_email"] == "you@example.com"

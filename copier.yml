@@ -66,9 +66,9 @@ org_domain:
 author_name:
   type: str
   help: Author name
-  default: ""
+  default: Your Name
 
 author_email:
   type: str
   help: Author email
-  default: ""
+  default: you@example.com
