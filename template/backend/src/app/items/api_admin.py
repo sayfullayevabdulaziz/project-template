@@ -2,9 +2,8 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.deps import CurrentUser
 from app.core.pagination import ListParams, list_params
 from app.items import service
@@ -19,7 +18,7 @@ router = APIRouter(
     },
 )
 
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = SessionDep
 Params = Annotated[
     ListParams, Depends(list_params(frozenset({"name", "created_at", "updated_at"})))
 ]

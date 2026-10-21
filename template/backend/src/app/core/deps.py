@@ -2,10 +2,9 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.errors import Forbidden, Unauthorized
 from app.core.security import decode_access_token
 from app.users.models import Role, User
@@ -19,7 +18,7 @@ def get_settings_dep(request: Request) -> Settings:
 
 async def get_current_user(
     creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDep,
     settings: Annotated[Settings, Depends(get_settings_dep)],
 ) -> User:
     if creds is None:

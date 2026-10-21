@@ -2,12 +2,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
 from app.auth.schemas import LoginRequest, RefreshRequest, TokenPair
 from app.core.config import Settings
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.deps import get_settings_dep
 from app.core.rate_limit import LOGIN_LIMIT, client_ip, get_redis, hit
 
@@ -20,7 +19,7 @@ router = APIRouter(
     },
 )
 
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = SessionDep
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 
 

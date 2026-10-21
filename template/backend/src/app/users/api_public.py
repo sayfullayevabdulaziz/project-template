@@ -2,9 +2,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.deps import CurrentUser
 from app.core.rate_limit import REGISTER_LIMIT, client_ip, get_redis, hit
 from app.users import service
@@ -13,7 +12,7 @@ from app.users.tasks import send_welcome_email
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = SessionDep
 
 
 @router.post(

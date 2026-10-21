@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Depends, Request
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -54,6 +54,11 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         except BaseException:
             await session.rollback()
             raise
+
+
+# scope="function": the commit runs before the response is sent. The scope is part of FastAPI's
+# dependency cache key, so every route must use SessionDep, never a bare Depends(get_session).
+SessionDep = Annotated[AsyncSession, Depends(get_session, scope="function")]
 
 
 async def get_task_session(
