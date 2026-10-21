@@ -1,4 +1,4 @@
-_min_copier_version: "9.0.0"
+_min_copier_version: "9.19.0"
 _subdirectory: "template/{{ component }}"
 # _exclude replaces Copier's defaults, so .git and .DS_Store are repeated.
 _exclude:
@@ -107,11 +107,11 @@ _tasks:
     when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
   - command: ["git", "init", "-b", "main"]
     when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
-  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=backend", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "{{ _copier_answers._src_path }}", "backend"]
+  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=backend", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "-d", "package_name={{ package_name }}", "{{ _copier_answers._src_path }}", "backend"]
     when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
-  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=frontend", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "{{ _copier_answers._src_path }}", "frontend"]
+  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=frontend", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "-d", "package_name={{ package_name }}", "{{ _copier_answers._src_path }}", "frontend"]
     when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
-  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=mobile", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "{{ _copier_answers._src_path }}", "mobile"]
+  - command: ["{{ _copier_python }}", "-m", "copier", "copy", "--trust", "--defaults", "--vcs-ref", "{{ _copier_answers._commit }}", "-d", "component=mobile", "-d", "project_name={{ project_name }}", "-d", "project_slug={{ project_slug }}", "-d", "project_description={{ project_description }}", "-d", "org_domain={{ org_domain }}", "-d", "author_name={{ author_name }}", "-d", "author_email={{ author_email }}", "-d", "package_name={{ package_name }}", "{{ _copier_answers._src_path }}", "mobile"]
     when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"
   - command: ["git", "add", "-A"]
     when: "{{ _copier_operation == 'copy' and component == 'workspace' }}"

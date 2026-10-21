@@ -22,7 +22,8 @@ def root(ws, tmp_path) -> Path:
 def stub(root: Path, repo: str, body: str = "") -> None:
     f = root / repo / ".claude/hooks/format.sh"
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(f'#!/bin/bash\ncat >> "{root}/{repo}.log"\n{body}\n')
+    f.write_text(f'#!/bin/bash\ncat >> "{root}/{repo}.log"\n'
+        f'echo "$(pwd -P)|$CLAUDE_PROJECT_DIR" >> "{root}/{repo}.env"\n{body}\n')
     f.chmod(0o755)
 
 
@@ -122,3 +123,9 @@ def test_relative_file_path_resolved_against_root(root):
 
 def test_script_is_executable_in_generated_tree(ws):
     assert os.access(ws / ".claude/hooks/format-dispatch.sh", os.X_OK)
+
+
+def test_formatter_runs_in_its_repo_dir(root):
+    assert run(root, payload(f"{root}/backend/x.py")).returncode == 0
+    repo = str((root / "backend").resolve())
+    assert (root / "backend.env").read_text().strip() == f"{repo}|{repo}"

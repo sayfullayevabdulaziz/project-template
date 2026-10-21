@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 24
       - run: corepack enable
-      - run: uv tool install copier
+      - run: uv tool install 'copier>=9.19,<10'
       - name: Git identity
         run: |
           git config --global user.name ci

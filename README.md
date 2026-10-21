@@ -10,7 +10,7 @@ copier copy --trust gh:<user>/project-template my-app
 copier copy --trust /abs/path/to/project-template my-app
 ```
 
-Requires Copier >= 9.0.0, `git` and `uv`; `pnpm` for the frontend; `flutter` is optional.
+Requires Copier >= 9.19.0, `git` and `uv`; `pnpm` for the frontend; `flutter` is optional.
 
 The template must be committed before you generate from a local checkout. The workspace copies each component with the committed `_commit` of the template, so uncommitted edits are not picked up. A relative template path is rejected.
 
@@ -48,10 +48,10 @@ gh repo create <org>/my-app-mobile --private --source mobile --push
 Run in each repo you want to update, in any order (each repo records its own answers):
 
 ```sh
-cd my-app/backend && copier update --trust
-cd my-app/frontend && copier update --trust
-cd my-app/mobile && copier update --trust
-cd my-app && copier update --trust
+(cd my-app/backend && copier update --trust)
+(cd my-app/frontend && copier update --trust)
+(cd my-app/mobile && copier update --trust)
+(cd my-app && copier update --trust)
 ```
 
 Copier does not manage lockfiles. After updating, re-lock: `uv lock` (backend), `pnpm install` (frontend), `flutter pub get` (mobile).

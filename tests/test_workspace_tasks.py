@@ -119,3 +119,11 @@ def test_workspace_update_does_not_touch_nested_repos(tmp_path):
     assert git(dest / "backend", "rev-parse", "HEAD") == head
     assert tree_hashes(dest / "backend") == hashes
     assert git(dest, "rev-list", "--count", "HEAD") == "1"
+
+
+def test_custom_package_name_reaches_nested_repos(tmp_path):
+    dest = tmp_path / "out"
+    r = generate(make_template(tmp_path), dest, extra={"package_name": "custom_pkg"})
+    assert r.returncode == 0, r.stderr
+    for d in [dest, dest / "mobile", dest / "backend"]:
+        assert answers(d)["package_name"] == "custom_pkg"

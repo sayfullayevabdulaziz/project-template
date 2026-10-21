@@ -34,7 +34,7 @@ for repo in backend frontend mobile; do
   case "$file" in
     "$root/$repo/"*)
       fmt="$root/$repo/.claude/hooks/format.sh"
-      [ -x "$fmt" ] && printf '%s' "$input" | "$fmt" >/dev/null 2>&1
+      [ -x "$fmt" ] && (cd "$root/$repo" && printf '%s' "$input" | CLAUDE_PROJECT_DIR="$root/$repo" "$fmt") >/dev/null 2>&1
       break
       ;;
   esac

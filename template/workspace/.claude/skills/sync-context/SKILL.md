@@ -15,7 +15,7 @@ Managed regions are delimited by these exact marker lines:
 
 ## Rules
 
-- Edit only text between a start and end marker pair. The one exception is the `## Commands` section of a repo's `AGENTS.md`: fix it to match the Makefile targets.
+- Edit only text between a start and end marker pair. The one exception is the `## Commands` section of a repo's `AGENTS.md`: fix it to match the Makefile (command targets from the skeleton only).
 - Never change any other text outside the markers.
 - Derive block content only from files you read. No timestamps, no dates, no counts that change. Use stable ordering (alphabetical) so a rerun is byte-identical.
 - Skip repos that are not present (`backend/`, `frontend/`, `mobile/`).
@@ -37,7 +37,7 @@ Managed regions are delimited by these exact marker lines:
    - the sibling repos;
    - where the contract lives (`backend/openapi/<surface>.json`).
 
-   Then fix the `## Commands` section so it lists exactly the targets in the repo's Makefile. This is the only text outside the markers you may edit.
+   Then fix the `## Commands` section so it lists only the command targets from the skeleton's Commands list that exist in the repo's Makefile. Never add file targets or helper targets. This is the only text outside the markers you may edit.
 3. In each `<repo>/CLAUDE.md`, rewrite only the text between `<!-- claude-tools:start -->` and `<!-- claude-tools:end -->`: which skill, agent or MCP server to use for which task, taken from what step 1 found.
 4. Finish:
    - If a repo's `AGENTS.md` or `CLAUDE.md` is missing, create it from `references/agents-skeleton-<stack>.md` or `references/claude-skeleton-<stack>.md` (stacks: `workspace`, `backend`, `frontend`, `mobile`). Replace `<project name>` with the project name from `PROJECT.md`, then fill the blocks as in steps 2 and 3.

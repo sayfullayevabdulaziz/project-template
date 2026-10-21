@@ -72,3 +72,9 @@ def test_skeleton_commands_match_contract(stack):
     want = {"backend": BACKEND, "frontend": CLIENT, "mobile": CLIENT + ["bootstrap"]}[stack]
     assert got == set(want)
     assert got <= CONTRACT
+
+
+def test_skill_commands_rule_limits_to_contract_targets():
+    body = (SKILL / "SKILL.md").read_text()
+    assert "exactly the targets" not in body
+    assert "Never add file targets or helper targets" in body

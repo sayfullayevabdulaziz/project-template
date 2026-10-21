@@ -79,3 +79,7 @@ def test_readme_has_required_sections():
     assert "git tag" in text
     assert "copier update --trust" in text
     assert "committed" in text
+
+
+def test_min_copier_version_is_tested_floor():
+    assert yaml.safe_load((REPO / "copier.yml").read_text())["_min_copier_version"] == "9.19.0"
