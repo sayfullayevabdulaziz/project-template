@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("APP_JWT_SECRET", "x" * 40)
 
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 
 import pytest
 from redis.asyncio import Redis
@@ -12,6 +12,8 @@ from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
 
 from app.core.db import Base, make_engine
+from app.core.security import hash_password
+from app.users.models import Role, User
 
 
 @pytest.fixture(scope="session")
@@ -56,3 +58,22 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 @pytest.fixture(autouse=True)
 async def _flush_redis(redis_client: Redis) -> None:
     await redis_client.flushdb()
+
+
+@pytest.fixture
+def make_user(session: AsyncSession) -> Callable[..., Awaitable[User]]:
+    async def _make(
+        email: str = "user@example.com",
+        *,
+        role: Role = Role.user,
+        is_active: bool = True,
+        password: str = "correct horse battery",  # noqa: S107
+    ) -> User:
+        user = User(
+            email=email, password_hash=hash_password(password), role=role, is_active=is_active
+        )
+        session.add(user)
+        await session.flush()
+        return user
+
+    return _make
