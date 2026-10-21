@@ -3,3 +3,4 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .superpowers/
+template/**/uv.lock

@@ -1,5 +1,4 @@
 .venv
-uv.lock
 .env
 .env.*.local
 .pytest_cache
