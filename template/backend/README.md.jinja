@@ -1,0 +1,62 @@
+# {{ project_name }} backend
+
+FastAPI service with two API surfaces: `/api/admin` (admin frontend) and `/api/v1` (public, mobile).
+Conventions and architecture are in `AGENTS.md`.
+
+## Quickstart
+
+```sh
+cp .env.example .env
+# set APP_JWT_SECRET (at least 32 bytes): openssl rand -hex 32
+make up
+make migrate
+make create-admin
+```
+
+`make up` builds and starts db, redis, Grafana (otel-lgtm), api, worker and scheduler on
+loopback ports. `make migrate` runs Alembic from your host against the compose database.
+
+- Admin API docs: http://localhost:8000/api/admin/docs
+- Public API docs: http://localhost:8000/api/v1/docs
+- Grafana (logs, traces, metrics): http://localhost:3000
+
+## Commands
+
+| Command | What it does |
+| ------- | ------------ |
+| `make dev` | Run the API with reload on port 8000 |
+| `make lint` | ruff check, ruff format check, ty |
+| `make fmt` | Format and autofix with ruff |
+| `make test` | Run pytest (needs Docker for testcontainers) |
+| `make check` | `make lint` plus `make test` |
+| `make openapi` | Export `openapi/admin.json` and `openapi/public.json` |
+| `make up` | Start the compose stack and wait until healthy |
+| `make down` | Stop the compose stack |
+| `make migrate` | Apply migrations (`alembic upgrade head`) |
+| `make migration m="message"` | Autogenerate a new migration |
+| `make create-admin` | Create an admin user (`ARGS="..."` is passed through) |
+
+## Environment
+
+Copy `.env.example` to `.env`. All `APP_*` keys are read by `app.core.config.Settings`.
+
+| Key | Purpose |
+| --- | ------- |
+| `APP_ENV` | `dev`, `test` or `prod` |
+| `APP_DATABASE_URL` | Postgres URL (`postgresql+asyncpg://...`) |
+| `APP_REDIS_URL` | Redis URL for rate limiting and the task broker |
+| `APP_JWT_SECRET` | JWT signing secret, at least 32 bytes, no default |
+| `APP_COOKIE_SECURE` | `true` marks the refresh cookie `Secure`; must be `true` in deploys |
+| `APP_CORS_ORIGINS` | Comma-separated list of allowed origins |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint for traces and metrics |
+| `OTEL_SERVICE_NAME` | Service name reported to OpenTelemetry |
+| `FORWARDED_ALLOW_IPS` | Proxy IPs uvicorn trusts for `X-Forwarded-*`; read by uvicorn, not `Settings` |
+
+## Deploy
+
+- Serve the admin frontend and this API from the same site behind one reverse proxy. The refresh
+  cookie is `SameSite=Strict`, so a cross-site admin origin cannot use it.
+- Set `FORWARDED_ALLOW_IPS` to the reverse proxy IPs so client IPs (rate limiting) are correct.
+- Set `APP_COOKIE_SECURE=true` and serve over HTTPS.
+- Run `make migrate` (or the compose `migrate` service) before starting a new version.
+- Run the worker and scheduler as separate processes next to the API.
