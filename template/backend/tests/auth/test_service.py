@@ -126,9 +126,13 @@ async def test_refresh_reuse_revokes_family(session: AsyncSession, make_user: Ma
     await make_user()
     t1 = await login(session)
     t2 = await refresh(session, t1.refresh_token)
+    await session.commit()  # setup persists; the rollback below may only undo the service's work
     with pytest.raises(Unauthorized):
         await refresh(session, t1.refresh_token)
-    assert all(r.revoked_at is not None for r in await rows(session))  # persisted despite raise
+    await session.rollback()  # what get_session does on raise; only a real commit survives it
+    stored = await rows(session)
+    assert len(stored) == 2
+    assert all(r.revoked_at is not None for r in stored)
     with pytest.raises(Unauthorized):
         await refresh(session, t2.refresh_token)
 
@@ -170,10 +174,13 @@ async def test_refresh_inactive_user_revokes_family(
     user = await make_user()
     t1 = await login(session)
     user.is_active = False
-    await session.flush()
+    await session.commit()  # setup persists; the rollback below may only undo the service's work
     with pytest.raises(Unauthorized):
         await refresh(session, t1.refresh_token)
-    assert all(r.revoked_at is not None for r in await rows(session))
+    await session.rollback()  # see test_refresh_reuse_revokes_family
+    stored = await rows(session)
+    assert len(stored) == 1
+    assert all(r.revoked_at is not None for r in stored)
 
 
 async def test_admin_refresh_rejects_demoted_user(
@@ -182,10 +189,13 @@ async def test_admin_refresh_rejects_demoted_user(
     user = await make_user(role=Role.admin)
     t1 = await login(session, require_admin=True)
     user.role = Role.user
-    await session.flush()
+    await session.commit()  # setup persists; the rollback below may only undo the service's work
     with pytest.raises(Unauthorized):
         await refresh(session, t1.refresh_token, require_admin=True)
-    assert all(r.revoked_at is not None for r in await rows(session))
+    await session.rollback()  # see test_refresh_reuse_revokes_family
+    stored = await rows(session)
+    assert len(stored) == 1
+    assert all(r.revoked_at is not None for r in stored)
 
 
 async def test_logout_revokes_family_and_is_idempotent(
@@ -237,6 +247,12 @@ async def test_concurrent_refresh_one_wins(
         assert winner.refresh_token != issued.refresh_token
         with pytest.raises(Unauthorized):
             await loser
+
+    # the loser's reuse branch must have committed: winner's fresh token is revoked too
+    async with committed_session_factory() as fresh:
+        stored = await rows(fresh)
+        assert len(stored) == 2
+        assert all(r.revoked_at is not None for r in stored)
 
 
 async def test_purge_expired_deletes_only_expired(
