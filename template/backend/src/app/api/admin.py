@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.api.surfaces import tag_surface
+from app.api.tagging import tag_surface
 from app.core.deps import require_admin
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(tag_surface("admin"))])
