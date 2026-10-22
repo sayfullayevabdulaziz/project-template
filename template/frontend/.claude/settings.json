@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": ["Bash(pnpm *)", "Bash(make *)", "Bash(docker compose *)"],
+    "deny": ["Read(./.env.local)", "Read(./.env.*.local)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
