@@ -1,13 +1,19 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 
 import { itemsCreateMutation } from '@/client/@tanstack/react-query.gen';
 import { ItemForm } from '@/components/item-form';
 import { showProblem } from '@/lib/problem';
+import { invalidateOp } from '@/lib/query';
 
 function NewItemPage() {
   const navigate = useNavigate();
-  const create = useMutation({ ...itemsCreateMutation(), onError: showProblem });
+  const qc = useQueryClient();
+  const create = useMutation({
+    ...itemsCreateMutation(),
+    onSuccess: () => invalidateOp(qc, 'itemsList'),
+    onError: showProblem,
+  });
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">New item</h1>

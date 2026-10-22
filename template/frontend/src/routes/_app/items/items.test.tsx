@@ -40,8 +40,11 @@ function useItemsApi(initial: ItemAdmin[]) {
       return new HttpResponse(null, { status: 204 });
     }),
     http.post(apiUrl('/items'), async ({ request }) => {
-      calls.posts.push(await request.text());
-      return HttpResponse.json(makeItem({ name: 'Widget' }), { status: 201 });
+      const text = await request.text();
+      calls.posts.push(text);
+      const created = makeItem({ ...(JSON.parse(text) as Partial<ItemAdmin>) });
+      db = [created, ...db];
+      return HttpResponse.json(created, { status: 201 });
     }),
   );
   return calls;
@@ -103,12 +106,15 @@ describe('items list', () => {
 
   it('falls back to defaults for hand-edited URL params instead of a 422', async () => {
     const calls = useItemsApi([makeItem({ name: 'Widget' })]);
-    await renderApp('/items?sort=bogus&limit=9999');
+    await renderApp('/items?sort=bogus&limit=9999&offset=-1&q=%');
     expect(await screen.findByText('Widget')).toBeInTheDocument();
+    expect(calls.lists).toHaveLength(1);
     const q = calls.lists[0]!.searchParams;
     expect(q.get('limit')).toBe('20');
     expect(q.get('offset')).toBe('0');
     expect(q.get('sort')).toBe('-created_at');
+    // '%' is a valid search term (zod string), so it passes through literally; it must not 422.
+    expect(q.get('q')).toBe('%');
   });
 
   it('deleting the only row on the last page steps back to the last non-empty page', async () => {
@@ -135,6 +141,22 @@ describe('new item', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/items'));
     expect(calls.posts).toEqual(['{"name":"Widget","is_published":false}']);
+  });
+});
+
+describe('new item cache', () => {
+  it('refetches the list after create even when the cached list is still fresh', async () => {
+    const calls = useItemsApi([makeItem({ name: 'Existing' })]);
+    const { queryClient, user } = await renderApp('/items');
+    expect(await screen.findByText('Existing')).toBeInTheDocument();
+    // Production staleTime: without invalidation the cached list would be reused.
+    queryClient.setDefaultOptions({ queries: { retry: false, staleTime: 30_000 } });
+    await user.click(screen.getByRole('link', { name: 'New item' }));
+    await user.type(await screen.findByLabelText('Name'), 'Fresh');
+    const before = calls.lists.length;
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    expect(await screen.findByText('Fresh')).toBeInTheDocument();
+    expect(calls.lists.length).toBeGreaterThan(before);
   });
 });
 
