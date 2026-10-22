@@ -4,9 +4,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import cli
+from app.auth.repository import RefreshTokenRepository
 from app.core.security import verify_password
-from app.users import service
 from app.users.models import Role
+from app.users.repository import UserRepository
+from app.users.service import UserService
 
 PASSWORD = "correct horse battery"
 
@@ -20,7 +22,7 @@ async def test_create_admin_creates_admin_user(committed_session_factory: Factor
     assert user.email == "root@example.com"
     assert verify_password(PASSWORD, user.password_hash)
     async with committed_session_factory() as s:
-        stored = await service.get_by_email(s, "root@example.com")
+        stored = await UserRepository(s).get_by_email("root@example.com")
     assert stored is not None
     assert stored.role == Role.admin
 
@@ -40,14 +42,16 @@ async def test_create_admin_idempotent(
 
 async def test_create_admin_promotes_existing_user(committed_session_factory: Factory) -> None:
     async with committed_session_factory() as s:
-        await service.register(s, "user@example.com", PASSWORD)
+        await UserService(UserRepository(s), RefreshTokenRepository(s)).register(
+            "user@example.com", PASSWORD
+        )
         await s.commit()
 
     user = await cli.create_admin(committed_session_factory, "USER@example.com", "x" * 12)
 
     assert user.role == Role.admin
     async with committed_session_factory() as s:
-        stored = await service.get_by_email(s, "user@example.com")
+        stored = await UserRepository(s).get_by_email("user@example.com")
     assert stored is not None
     assert stored.role == Role.admin
     assert verify_password(PASSWORD, stored.password_hash)  # promotion keeps the password

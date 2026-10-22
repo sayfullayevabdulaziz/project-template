@@ -6,11 +6,13 @@ import sys
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.auth.repository import RefreshTokenRepository
 from app.core.config import get_settings
 from app.core.db import make_engine, make_session_factory
-from app.users import service
 from app.users.models import Role, User
+from app.users.repository import UserRepository
 from app.users.schemas import Email
+from app.users.service import UserService
 
 MIN_PASSWORD_LENGTH = 12
 
@@ -19,15 +21,16 @@ async def create_admin(
     session_factory: async_sessionmaker[AsyncSession], email: str, password: str
 ) -> User:
     async with session_factory() as session:
-        user = await service.get_by_email(session, email)
+        svc = UserService(UserRepository(session), RefreshTokenRepository(session))
+        user = await svc.get_by_email(email)
         if user is None:
-            user = await service.register(session, email, password, role=Role.admin)
+            user = await svc.register(email, password, role=Role.admin)
             print(f"created admin {user.email}")
         elif user.role == Role.admin:
             print(f"{user.email} is already an admin")
         else:
             # promotion keeps the existing password; the supplied one is ignored
-            user.role = Role.admin
+            await svc.promote_to_admin(user)
             print(f"promoted {user.email} to admin")
         await session.commit()
         return user

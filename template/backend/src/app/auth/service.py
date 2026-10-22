@@ -15,8 +15,8 @@ from app.core.security import (
     new_refresh_token,
     verify_password,
 )
-from app.users import service as users
 from app.users.models import Role, User
+from app.users.repository import UserRepository
 
 
 @dataclass
@@ -62,7 +62,7 @@ async def login(
     settings: Settings,
     require_admin: bool = False,
 ) -> Issued:
-    user = await users.get_by_email(session, email)
+    user = await UserRepository(session).get_by_email(email)
     if user is None:
         verify_password(password, DUMMY_HASH)  # equalize timing with the known-user path
         raise Unauthorized("invalid credentials")
