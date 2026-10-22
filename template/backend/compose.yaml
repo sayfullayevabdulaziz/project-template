@@ -1,0 +1,95 @@
+x-backend: &backend
+  build: .
+  env_file:
+    - path: .env
+      required: false
+  environment: &backend-env
+    APP_DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
+    APP_REDIS_URL: redis://redis:6379/0
+    APP_JWT_SECRET: ${APP_JWT_SECRET:-}
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.11.0
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command: ["taskiq", "worker", "app.core.broker:broker", "app.users.tasks", "app.auth.tasks"]
+    healthcheck:
+      # `up --wait` rejects services without a healthcheck: probe the process, not :8000.
+      test: ["CMD-SHELL", "grep -aq taskiq /proc/1/cmdline"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    <<: *backend
+    command: ["taskiq", "scheduler", "app.core.broker:scheduler", "app.auth.tasks"]
+    healthcheck:
+      # `up --wait` rejects services without a healthcheck: probe the process, not :8000.
+      test: ["CMD-SHELL", "grep -aq taskiq /proc/1/cmdline"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  db-data:

@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the breaking-change step reads the base branch spec via git.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run ty check
+      # Docker is preinstalled on ubuntu runners: testcontainers starts Postgres and Redis.
+      - run: uv run pytest
+      - name: OpenAPI drift
+        run: make openapi && git diff --exit-code openapi
+      # Pull requests only: compare the public spec against the base branch.
+      # The base copy lives in the workspace: the action runs in a container that does not see the host /tmp.
+      - name: Fetch base public spec
+        if: github.event_name == 'pull_request'
+        id: base
+        run: |
+          if git show "origin/${{ github.base_ref }}:openapi/public.json" > base-public.json; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::openapi/public.json is absent on ${{ github.base_ref }}; skipping the breaking-change check"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: breaking
+        if: github.event_name == 'pull_request' && steps.base.outputs.present == 'true'
+        uses: oasdiff/oasdiff-action/breaking@9ce3a29eb0e6478dd0140932a678c7fb59d08f22 # v0.1.20
+        with:
+          base: base-public.json
+          revision: openapi/public.json
+          fail-on: ERR
+          # Keep specs in CI: no upload to oasdiff.com, no PR comment (token not needed).
+          review: "false"
+          github-token: ""

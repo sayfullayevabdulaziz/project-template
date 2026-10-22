@@ -1,0 +1,23 @@
+@AGENTS.md
+
+## Claude Code
+
+Project config lives in `.claude/` and `.mcp.json`. Follow `AGENTS.md` for commands and conventions.
+
+Permissions: the `.claude/settings.json` allow list (`uv run`, `make`, `docker compose`) is a
+convenience allowlist and NOT a sandbox. Bash commands such as `docker compose config`,
+`uv run python` and `make` targets can still read `.env` contents. The deny rule for `.env`
+only covers the Read tool. Keep real secrets out of any file an agent can reach.
+
+<!-- claude-tools:start -->
+- Skill `new-feature-module`: scaffold a module: model, schemas, service, per-surface routers, migration, tests.
+- Skill `db-migration`: create and review an Alembic migration.
+- Skill `background-task`: add a taskiq background or cron task.
+- Subagent `backend-reviewer`: read-only review of a diff against these conventions; run it before a PR.
+- MCP `context7` (`.mcp.json`): up-to-date library docs. Pinned to `@upstash/context7-mcp@4.4.4`.
+- Hook: after each Edit or Write of a `.py` file, `.claude/hooks/format.sh` runs ruff format and
+  `ruff check --fix`. It never blocks an edit and skips symlinks and files outside the repo.
+<!-- claude-tools:end -->
+
+MCP pin audit: `@upstash/context7-mcp@4.4.4` was checked on 2026-10-21 and was then a 2-day-old
+npm `latest`. Dependabot does not watch `.mcp.json`, so bump the pin by hand and re-audit it.

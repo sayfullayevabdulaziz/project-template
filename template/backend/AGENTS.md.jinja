@@ -1,0 +1,105 @@
+# {{ project_name }}
+
+<!-- project-context:start -->
+Describe what this repository is for: the product, its users, and the two API surfaces it
+serves. Run `/sync-context` to replace this paragraph with the real project context.
+<!-- project-context:end -->
+
+## Stack
+
+- Python 3.14, managed with `uv`. Lint and format with ruff, type-check with ty.
+- FastAPI, Pydantic v2, pydantic-settings. Run with uvicorn.
+- PostgreSQL 17 via async SQLAlchemy 2 and asyncpg. Migrations with Alembic.
+- Redis 7 for rate limiting and the taskiq broker. Background jobs with taskiq.
+- Auth: argon2 password hashes, short-lived JWT access token, `SameSite=Strict` refresh cookie.
+- Layout: `src/app` (code), `tests/`, `migrations/` (Alembic), `openapi/` (exported specs), `scripts/`.
+- Observability: structlog plus OpenTelemetry to Grafana (otel-lgtm) at `localhost:3000`.
+
+## Commands
+
+Run from `backend/`. Prefer the Makefile over raw tool calls.
+Copy `.env.example` to `.env` first; `APP_JWT_SECRET` has no default and must be set.
+
+- `make dev`: API with reload on port 8000 (needs `make up` services or local db and redis).
+- `make test`: pytest. `make lint`: ruff check, ruff format check, ty. `make fmt`: format and autofix.
+- `make check`: lint plus tests. This is the gate before every commit.
+- `make openapi`: regenerate `openapi/admin.json` and `openapi/public.json`.
+- `make up` / `make down`: start or stop the full compose stack (db, redis, otel-lgtm, migrate, api, worker, scheduler).
+- `make migrate`: `alembic upgrade head`. `make migration m="add widgets"`: autogenerate a revision.
+- `make create-admin`: create the first admin: `make create-admin ARGS="--email you@example.com"` (`--email` is required; the password is prompted, hidden).
+- `uv run alembic downgrade -1`, `uv run alembic history`: inspect or step back migrations.
+- `uv run taskiq worker app.core.broker:broker app.users.tasks app.auth.tasks`: run a worker.
+- `uv run taskiq scheduler app.core.broker:scheduler app.auth.tasks`: run the scheduler.
+
+## Architecture
+
+One package per domain module under `src/app/<module>/`, each exposing one router per surface.
+
+| Module | `models.py` | `schemas.py` | `service.py` | `api_admin.py` + `schemas_admin.py` | `api_public.py` + `schemas_public.py` | `tasks.py` |
+| ------ | ----------- | ------------ | ------------ | ----------------------------------- | ------------------------------------- | ---------- |
+| auth   | yes         | yes          | yes          | yes                                 | yes                                   | yes        |
+| users  | yes         | yes          | yes          | yes                                 | yes                                   | yes        |
+| items  | yes         | yes          | yes          | yes                                 | yes                                   | no         |
+
+- `core/` holds shared plumbing: `config` (Settings), `db` (engine, session, UUIDv7 pk), `deps`
+  (auth and session dependencies), `errors` (problem+json), `security` (hashing, JWT),
+  `rate_limit`, `pagination`, `broker` (taskiq), `telemetry`, `logging`, `models` (imports every model).
+- `api/admin.py` and `api/public.py` only include module routers. `api/surfaces.py` holds the
+  `SURFACES` registry (admin at `/api/admin`, public at `/api/v1`) and `surface_openapi`, which
+  builds one OpenAPI document per surface.
+- `make openapi` writes `openapi/admin.json` (consumed by `frontend/`) and `openapi/public.json`
+  (consumed by `mobile/`). Change order: backend first, then `make openapi`, then
+  `make sync-api` from the workspace root (a workspace target, not in this repo's Makefile; skip it
+  when this backend is used standalone), then the clients. Commit the regenerated specs with the change.
+- Background work goes through taskiq tasks in `<module>/tasks.py`; register new task modules on the worker and scheduler commands in `compose.yaml`.
+- Add a module with the `new-feature-module` skill; it registers the module on both surfaces.
+
+## Conventions
+
+- Business logic lives only in `service.py`. Routers parse input, call a service, shape output.
+- Each surface has its own schemas in `<module>/schemas_<surface>.py`, imported only by that
+  surface's `api_<surface>.py` and `schemas_<surface>.py`. `<module>/schemas.py` holds field types
+  and classes used by two or more surfaces. Services take plain values, never a surface schema.
+  `tests/test_schema_boundaries.py` enforces this.
+- operationId is `{tag}-{route name}` (`generate_unique_id`); the tag is the module name. Keep route names unique per module.
+- Primary keys are UUIDv7 (`uuid7_pk()`). Timestamps are timezone-aware UTC.
+- Errors are RFC 9457 `application/problem+json` through `core/errors.py`. Raise, do not hand-build responses.
+- Services raise domain errors (`NotFound`, `Conflict`, `Unauthorized`, `Forbidden`, `RateLimited`); handlers map them to HTTP.
+- List endpoints use `core/pagination.py`: `limit` (1-100), `offset`, `sort` from an allow-list, `q`; they return `Page[T]`.
+- Throttle abuse-prone endpoints with `core/rate_limit.py` (Redis, per IP or per IP and email).
+- Commit the database transaction before enqueueing a taskiq task, so the worker sees the row.
+- `/api/v1` is expand-only: add fields and endpoints, never remove or change them. A breaking change goes to `/api/v2`.
+- `/api/admin` is unversioned and follows expand, migrate, contract across releases.
+- Passwords are hashed with argon2 (`core/security.py`); never log or return hashes, tokens or secrets.
+- The refresh token is an httpOnly `SameSite=Strict` cookie; `APP_COOKIE_SECURE=true` outside local dev.
+- Settings come from `APP_*` env vars through `core/config.py`; never read `os.environ` elsewhere.
+
+## Testing
+
+Tests are the spec. Write the failing test first, then the code.
+
+- Tests run against real Postgres and Redis through testcontainers (Docker must be running).
+- Each test runs inside a savepoint that is rolled back, so tests do not leak data.
+- HTTP tests use `httpx.AsyncClient` with `ASGITransport`: one client per surface, admin and user.
+- Guard tests iterate `SURFACES`, so a new module or route is checked automatically.
+- Background tasks run on taskiq `InMemoryBroker` in tests; no worker process is needed.
+- Fixtures live in `tests/conftest.py`: `session`, `app`, `anon_client`, `user_client`, `admin_client`, `make_user`.
+- A feature needs a service test and an endpoint test for each surface it exposes.
+- Run one file with `uv run pytest tests/<file>.py -q` while iterating, then `make check` before committing.
+
+## Definition of done
+
+- `make check` is green.
+- Specs are regenerated with `make openapi` and committed alongside the code.
+- Any new migration is reviewed by hand, not just autogenerated.
+- Commits follow Conventional Commits (`feat(backend): ...`).
+- New settings are added to `core/config.py`, `.env.example` and the README env table together.
+- The `backend-reviewer` subagent has reviewed the diff when it touched `src/app`, `migrations` or `tests`.
+
+## Never
+
+- Never edit generated code (the `openapi/*.json` specs or client SDKs); regenerate it.
+- Never edit a migration that has been applied; add a new revision.
+- Never commit secrets or `.env`; keep them in the environment.
+- Never put logic in surface files (`api_admin.py`, `api_public.py`, `api/*.py`); use services.
+- Never break `/api/v1` in place; ship the change under `/api/v2`.

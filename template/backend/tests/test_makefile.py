@@ -1,0 +1,106 @@
+import re
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+TARGETS = [
+    "dev",
+    "test",
+    "lint",
+    "fmt",
+    "check",
+    "openapi",
+    "up",
+    "down",
+    "migrate",
+    "migration",
+    "create-admin",
+]
+SERVICES = ["db", "redis", "otel-lgtm", "migrate", "api", "worker", "scheduler"]
+
+
+def _make(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(  # noqa: S603
+        ["make", *args],  # noqa: S607
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_required_targets_exist() -> None:
+    makefile = (ROOT / "Makefile").read_text()
+    for target in TARGETS:
+        assert re.search(rf"^{re.escape(target)}:", makefile, re.MULTILINE), target
+
+
+def test_migration_requires_m() -> None:
+    result = _make("-n", "migration")
+    assert result.returncode != 0
+    assert "m=" in result.stdout + result.stderr
+
+
+def test_migration_with_m_runs_autogenerate() -> None:
+    result = _make("-n", "migration", "m=add widgets")
+    assert result.returncode == 0
+    assert 'alembic revision --autogenerate -m "add widgets"' in result.stdout
+
+
+def test_create_admin_uses_compose_run() -> None:
+    result = _make("-n", "create-admin", "ARGS=--email a@b.co")
+    assert "docker compose run --rm api create-admin --email a@b.co" in result.stdout
+
+
+def test_compose_has_services() -> None:
+    compose = (ROOT / "compose.yaml").read_text()
+    for service in SERVICES:
+        assert re.search(rf"^  {re.escape(service)}:", compose, re.MULTILINE), service
+
+
+def test_dockerfile_non_root_and_healthcheck() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert "USER app" in dockerfile
+    assert "HEALTHCHECK" in dockerfile
+
+
+def _service_block(name: str) -> str:
+    compose = (ROOT / "compose.yaml").read_text()
+    match = re.search(rf"^  {re.escape(name)}:\n((?:    .*\n|\n)*)", compose, re.MULTILINE)
+    assert match, name
+    return match.group(1)
+
+
+def test_non_http_services_do_not_inherit_http_healthcheck() -> None:
+    # Line-based check: PyYAML is not a dependency.
+    # migrate is one-shot (disabled); worker/scheduler need a real probe because
+    # `up --wait` rejects services whose healthcheck is disabled.
+    assert re.search(
+        r"^    healthcheck:\n      disable: true$", _service_block("migrate"), re.MULTILINE
+    )
+    for service in ("worker", "scheduler"):
+        block = _service_block(service)
+        assert re.search(r"^      test: \[.*taskiq.*\]$", block, re.MULTILINE), service
+        assert "disable: true" not in block, service
+
+
+def test_published_ports_bind_loopback() -> None:
+    compose = (ROOT / "compose.yaml").read_text()
+    ports = [
+        item
+        for block in re.findall(r"^    ports:\n((?:      - .*\n)+)", compose, re.MULTILINE)
+        for item in re.findall(r'- "(.*)"', block)
+    ]
+    assert len(ports) == 6
+    assert all(p.startswith("127.0.0.1:") for p in ports), ports
+
+
+def test_otlp_endpoints_use_http_port() -> None:
+    # telemetry.py uses the OTLP/HTTP exporters: 4317 is gRPC and resets those connections.
+    for name in ("compose.yaml", ".env.example"):
+        line = next(
+            ln
+            for ln in (ROOT / name).read_text().splitlines()
+            if "OTEL_EXPORTER_OTLP_ENDPOINT" in ln
+        )
+        assert line.rstrip().endswith(":4318"), name
