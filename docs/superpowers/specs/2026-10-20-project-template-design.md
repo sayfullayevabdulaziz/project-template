@@ -50,7 +50,7 @@ Each repo carries its own Claude Code config (skills, subagent, hooks, MCP/plugi
 - Renovate (Dependabot is used).
 - FVM.
 - A staleness hook for generated AI docs.
-- A repository layer in the backend (add per module when queries grow).
+- A repository layer in the backend (added later; see `docs/superpowers/specs/2026-10-22-backend-repository-layer-design.md`).
 - An admin framework (refine, react-admin, etc.).
 
 ### Anti-goals (failures even if everything "works")
@@ -270,7 +270,7 @@ Makefile pyproject.toml .env.example .pre-commit-config.yaml .github/workflows/c
 
 Rules:
 
-- No repository layer. The service talks to SQLAlchemy. Add one per module when queries grow.
+- Repository layer added later: see `docs/superpowers/specs/2026-10-22-backend-repository-layer-design.md`.
 - Stable operationIds via `generate_unique_id_function` (`{tag}-{route_name}`) so generated TS/Dart clients get clean names.
 - Tasks are typed and idempotent.
 - Primary keys are UUIDv7 (`uuid.uuid7()`). Items are hard-deleted. Field lists are in section 5, item 24.
