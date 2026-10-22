@@ -1,15 +1,30 @@
+import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy.ext.asyncio import AsyncSession
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth.models import RefreshToken
 from app.auth.repository import RefreshTokenRepository
+from app.auth.service import AuthService, Issued
+from app.core.config import Settings
+from app.core.errors import Unauthorized
+from app.core.security import hash_password
 from app.users.models import User
+from app.users.repository import UserRepository
 
 MakeUser = Callable[..., Awaitable[User]]
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
+PASSWORD = "correct horse battery"
+SETTINGS = Settings(
+    _env_file=None,
+    database_url="postgresql+asyncpg://unused",
+    redis_url="redis://unused",
+    jwt_secret="x" * 40,
+)
 
 
 async def seed(
@@ -87,3 +102,55 @@ async def test_purge_expired_deletes_only_expired(
 
 async def test_get_family_id_unknown_is_none(session: AsyncSession) -> None:
     assert await RefreshTokenRepository(session).get_family_id("nope") is None
+
+
+async def rows(session: AsyncSession, **where: object) -> list[RefreshToken]:
+    stmt = (
+        select(RefreshToken)
+        .filter_by(**where)
+        .order_by(RefreshToken.created_at, RefreshToken.id)
+        .execution_options(populate_existing=True)
+    )
+    return list(await session.scalars(stmt))
+
+
+def _auth(session: AsyncSession) -> AuthService:
+    return AuthService(UserRepository(session), RefreshTokenRepository(session))
+
+
+async def login(session: AsyncSession, email: str = "user@example.com", **kw: bool) -> Issued:
+    return await _auth(session).login(email, PASSWORD, settings=SETTINGS, **kw)
+
+
+async def refresh(session: AsyncSession, raw: str, **kw: bool) -> Issued:
+    return await _auth(session).refresh(raw, settings=SETTINGS, **kw)
+
+
+async def test_concurrent_refresh_one_wins(
+    committed_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with committed_session_factory() as s:
+        user = User(email="user@example.com", password_hash=hash_password(PASSWORD))
+        s.add(user)
+        await s.flush()
+        issued = await login(s)
+        await s.commit()
+
+    # Deterministic interleave: A rotates but has not committed (holds the row lock); B must block
+    # on FOR UPDATE, then see the revoked row once A commits and lose. Without the lock B would
+    # finish while A is still open and both would win.
+    async with committed_session_factory() as a, committed_session_factory() as b:
+        winner = await refresh(a, issued.refresh_token)
+        loser = asyncio.create_task(refresh(b, issued.refresh_token))
+        await asyncio.sleep(0.3)
+        assert not loser.done()
+        await a.commit()
+        assert winner.refresh_token != issued.refresh_token
+        with pytest.raises(Unauthorized):
+            await loser
+
+    # the loser's reuse branch must have committed: winner's fresh token is revoked too
+    async with committed_session_factory() as fresh:
+        stored = await rows(fresh)
+        assert len(stored) == 2
+        assert all(r.revoked_at is not None for r in stored)
