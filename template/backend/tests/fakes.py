@@ -6,6 +6,7 @@ from sqlalchemy.sql.schema import ColumnDefault
 
 from app.core.db import Base
 from app.core.pagination import ListParams
+from app.items.models import Item
 
 
 class FakeRepository[M: Base]:
@@ -50,3 +51,12 @@ class FakeRepository[M: Base]:
         # shortcut: no search/sort in fakes; covered by Postgres repository tests
         everything = list(rows)
         return everything[params.offset : params.offset + params.limit], len(everything)
+
+
+class FakeItemRepository(FakeRepository[Item]):
+    async def list_page(
+        self, params: ListParams, *, published_only: bool = False
+    ) -> tuple[list[Item], int]:
+        return self._list_page(
+            params, (i for i in self.rows.values() if i.is_published or not published_only)
+        )
