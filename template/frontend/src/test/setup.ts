@@ -18,6 +18,12 @@ beforeAll(() => {
       removeEventListener: () => {},
     }),
   });
+  // jsdom lacks ResizeObserver; Radix Switch (form controls) measures itself with it.
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
   server.listen({ onUnhandledFrame: 'error' });
   installAuthInterceptors(client);
 });
