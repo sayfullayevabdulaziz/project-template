@@ -1,0 +1,57 @@
+# {{ project_name }} admin
+
+Admin panel for {{ project_name }}{% if project_description %}: {{ project_description }}{% endif %}. React, Vite and TanStack, with an API client generated from the backend's `/api/admin` OpenAPI spec. Conventions and architecture are in `AGENTS.md`.
+
+## Quickstart
+
+Needs Node 24 and pnpm, plus the backend running on port 8000 (see the backend README; create an admin with `make create-admin` there).
+
+```sh
+pnpm install
+make dev
+```
+
+Open http://localhost:5173 and sign in with the admin account. `/api` is proxied to the backend, so the browser sees one origin and the `SameSite=Strict` refresh cookie works in development.
+
+If pnpm refuses to run because the local pnpm differs from the `packageManager` pin, run `export npm_config_manage_package_manager_versions=false` first.
+
+## Commands
+
+| Command        | What it does                                         |
+| -------------- | ---------------------------------------------------- |
+| `make dev`     | Vite dev server with `/api` proxied to the backend   |
+| `make test`    | Run Vitest once                                      |
+| `make lint`    | ESLint and Prettier check                            |
+| `make fmt`     | Prettier write and ESLint fix                        |
+| `make check`   | lint, typecheck, test, build (run before committing) |
+| `make gen-api` | Regenerate `src/client` from `openapi.json`          |
+
+## Regenerate the API client
+
+When the backend API changes, copy the backend's `openapi/admin.json` over `openapi.json`, then:
+
+```sh
+make gen-api
+```
+
+Commit `openapi.json` and the `src/client` diff together. CI fails when the committed client is stale.
+
+## Environment
+
+Copy `.env.example` to `.env.local` to override. Variables are validated in `src/env.ts`.
+
+| Variable            | Used by           | Meaning                                                                                                                          |
+| ------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL` | build and browser | API origin. Empty (default) means same origin, which is what you want behind a proxy. Set it only for sibling-subdomain deploys. |
+| `API_PROXY_TARGET`  | `make dev` only   | Backend the dev server proxies `/api` to. Default `http://localhost:8000`.                                                       |
+
+## Deploy
+
+Admin and API must be served from the same site (one reverse proxy routing `/api` to the backend and `/` to this app, or sibling subdomains of one registrable domain) because the refresh cookie is `SameSite=Strict`.
+
+```sh
+docker build -t {{ project_slug }}-admin .
+docker run --rm -p 8080:8080 {{ project_slug }}-admin
+```
+
+The image serves the static build with nginx on port 8080. It does not proxy `/api`: a front proxy must route `/api` to the backend and `/` to this container. `VITE_API_BASE_URL` is baked in at build time (`--build-arg VITE_API_BASE_URL=...`).

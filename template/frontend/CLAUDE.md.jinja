@@ -1,0 +1,23 @@
+@AGENTS.md
+
+## Claude Code
+
+Project config lives in `.claude/` and `.mcp.json`. Follow `AGENTS.md` for commands and conventions.
+
+Before finishing a task that touched `src/`, run the `frontend-reviewer` subagent and fix its findings. Pick a skill by situation: adding a resource page, regenerating or using the API client, or building a component.
+
+Permissions: the `.claude/settings.json` allow list (`pnpm`, `make`, `docker compose`) is a convenience allowlist and NOT a sandbox. The deny rules for `.env.local` only cover the Read tool. Keep real secrets out of any file an agent can reach.
+
+<!-- claude-tools:start -->
+
+- Skill `new-admin-resource`: add a resource (list, create, edit, delete) mirroring items. Use for a new backend resource.
+- Skill `api-client`: refresh or extend `src/client` from the OpenAPI spec. Use when the backend API changed or an endpoint is needed.
+- Skill `ui-component`: add or change shadcn/ui or app components with accessibility and tests. Use for work under `src/components`.
+- Subagent `frontend-reviewer`: read-only review of a diff against these conventions; run it before finishing.
+- MCP `context7` (`.mcp.json`): up-to-date library docs. Use for TanStack, shadcn, MSW or zod API questions. Pinned to `@upstash/context7-mcp@4.4.4`.
+- MCP `playwright` (`.mcp.json`): drive a real browser against `make dev` to check a UI change. Pinned to `@playwright/mcp@0.0.83`.
+- Hook: after each Edit or Write, `.claude/hooks/format.sh` formats the file.
+
+<!-- claude-tools:end -->
+
+MCP pin audit: Dependabot does not watch `.mcp.json`, so bump the pins by hand and re-audit them.
