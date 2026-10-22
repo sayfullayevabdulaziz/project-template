@@ -212,6 +212,7 @@ async def test_admin_refresh_rejects_demoted_user(
     with pytest.raises(Unauthorized):
         await refresh(svc, t1.refresh_token, require_admin=True)
     stored = rows(tokens)
+    assert tokens.commits == 1  # see test_refresh_inactive_user_revokes_family
     assert len(stored) == 1
     assert all(r.revoked_at is not None for r in stored)
 

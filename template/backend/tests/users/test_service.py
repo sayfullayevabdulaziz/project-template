@@ -40,6 +40,20 @@ async def test_register_duplicate_case_insensitive_conflicts() -> None:
     assert await svc.get_by_email("alice@x.com") is not None
 
 
+class RacedUserRepository(FakeUserRepository):
+    async def get_by_email(self, email: str) -> User | None:
+        return None  # the pre-check passes
+
+    async def add_unique(self, user: User) -> User | None:
+        return None  # the savepoint reports a duplicate
+
+
+async def test_register_lost_race_raises_conflict() -> None:
+    svc = UserService(RacedUserRepository(), FakeRefreshTokenRepository())
+    with pytest.raises(Conflict, match="Email already registered"):
+        await svc.register("alice@x.com", PASSWORD)
+
+
 async def test_register_hashes_password() -> None:
     svc, _, _ = make_service()
     user = await svc.register("a@x.com", PASSWORD)

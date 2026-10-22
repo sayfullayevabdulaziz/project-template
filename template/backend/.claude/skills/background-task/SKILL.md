@@ -9,7 +9,7 @@ description: Add a taskiq background or scheduled (cron) task. Use when work mus
 2. Arguments are primitives only (`str`, `int`, ...; pass `str(uuid)`, not ORM objects). Load fresh state inside the task with `session: AsyncSession = TASK_SESSION`, through `<Mod>Repository(session)` or a service built from it. Never call `session.get` or `select` in the task.
 3. Make it idempotent: safe to retry and to run twice. A missing row is a no-op, not an error.
 4. For cron, add a schedule label: `@broker.task(schedule=[{"cron": "0 * * * *"}])` (see `src/app/auth/tasks.py`).
-5. Enqueue with `await task.kiq(...)` only after the transaction commits, so the worker sees the data.
+5. Enqueue with `await task.kiq(...)` only after the transaction commits, so the worker sees the data: inject `SessionDep` next to the service and `await session.commit()` before `kiq`.
 6. Register the module: append `app.<mod>.tasks` to the `worker` command in `compose.yaml`. For scheduled tasks, also append it to the `scheduler` command.
 7. Test with the `InMemoryBroker` pattern from `tests/test_tasks.py`: call the task function or `kiq` and assert the effect, including the second-run and missing-row cases.
 8. Run `make check`.

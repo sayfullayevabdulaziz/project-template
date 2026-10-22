@@ -18,5 +18,6 @@ class ItemRepository(BaseRepository[Item]):
     async def list_page(
         self, params: ListParams, *, published_only: bool = False
     ) -> tuple[list[Item], int]:
+        # .expression: ty rejects InstrumentedAttribute[bool] in a ColumnElement list
         where = [Item.is_published.expression] if published_only else []
         return await self._list_page(params, *where)
