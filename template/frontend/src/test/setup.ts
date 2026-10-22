@@ -8,6 +8,16 @@ import { __resetAuthForTests, installAuthInterceptors } from '@/lib/auth';
 import { server } from './server';
 
 beforeAll(() => {
+  // jsdom lacks matchMedia; the sidebar's useIsMobile needs it.
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (media: string) => ({
+      matches: false,
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }),
+  });
   server.listen({ onUnhandledFrame: 'error' });
   installAuthInterceptors(client);
 });
