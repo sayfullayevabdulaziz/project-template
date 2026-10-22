@@ -46,9 +46,9 @@ Run from `frontend/`. Prefer the Makefile over raw tool calls.
 Auth flow:
 
 1. The access token lives in a module variable in `src/lib/auth.ts`; the refresh token is an httpOnly `SameSite=Strict` cookie.
-2. Route guards call `ensureSession`, which refreshes once (single flight) when no token is held.
+2. The route guard in `src/routes/_app.tsx` calls `ensureAdmin` (`src/lib/session.ts`), which uses `ensureSession`; that refreshes once (single flight) when no token is held.
 3. A 401 on a normal request triggers one refresh and one retry of that request.
-4. A failed refresh clears the token and fires `onSessionExpired`, which sends the user to `/login`.
+4. A 401 from refresh clears the token and fires `onSessionExpired` (only if a token was held), which sends the user to `/login`. Other failures (network, 5xx) leave the session as it is.
 5. `ensureAdmin` logs out any non-admin user.
 
 Data flow: a route validates the URL search params (`makeListSearchSchema`), passes `search` and a stable `onSearchChange` to a table component, which calls the generated `*Options` with `toQuery(search)` and hands rows to `DataTable`.
@@ -64,7 +64,7 @@ Data flow: a route validates the URL search params (`makeListSearchSchema`), pas
 - Invalidate caches with `invalidateOp(qc, 'itemsList', ...)`. Never build query keys by hand.
 - `@tanstack/react-table` is pinned to v8; use the v8 API only.
 - `DataTable` `onSearchChange` must be a stable callback (wrap it in `useCallback`); its empty-last-page effect depends on it.
-- Callers do not pass `defaultSort` to `DataTable`.
+- Callers do not pass `defaultSort` to `DataTable`. Its header-click cycle reads `search.sort`, while `aria-sort` and the icon read `search.sort ?? defaultSort`, so the cycle would look inconsistent.
 - `items-table.tsx` and `users-table.tsx` are the reference table components; copy their shape for a new resource.
 - Mutations: pass `onError: showProblem` and invalidate the list and get operations in `onSuccess`.
 - Import app code through the `@/` alias, not long relative paths.

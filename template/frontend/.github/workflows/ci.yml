@@ -25,4 +25,4 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       # Fails when the committed client is stale against openapi.json.
-      - run: pnpm gen-api && git diff --exit-code -- src/client
+      - run: pnpm gen-api && test -z "$(git status --porcelain -- src/client)"

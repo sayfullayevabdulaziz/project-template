@@ -237,12 +237,26 @@ describe('auth', () => {
     const refresh = gatedRefresh(() =>
       HttpResponse.json({ access_token: 't-refreshed', token_type: 'bearer' }),
     );
-    const pending = refreshSession();
+    const order: string[] = [];
+    server.use(
+      http.post(apiUrl('/auth/logout'), () => {
+        order.push('logout');
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const pending = refreshSession().then((t) => {
+      order.push('refresh');
+      return t;
+    });
     await refresh.started;
-    await logout();
+    // logout() queues behind the in-flight refresh, so release the gate before awaiting it;
+    // awaiting first would deadlock.
+    const loggingOut = logout();
     refresh.release();
+    await loggingOut;
     expect(await pending).toBeNull();
     expect(getAccessToken()).toBeNull();
+    expect(order).toEqual(['refresh', 'logout']);
   });
 
   it('login during an in-flight refresh that answers 401 keeps the new session', async () => {

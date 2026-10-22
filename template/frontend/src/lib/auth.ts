@@ -71,7 +71,13 @@ export async function login(creds: LoginRequest): Promise<void> {
 
 export async function logout(): Promise<void> {
   setAccessToken(null);
-  await authLogout().catch(() => undefined);
+  // Queue behind any in-flight refresh: a rotation committing after the revoke would revive the session.
+  const call = () => authLogout().catch(() => undefined);
+  const run =
+    typeof navigator !== 'undefined' && navigator.locks
+      ? navigator.locks.request('admin-auth-refresh', call)
+      : (refreshPromise?.catch(() => null) ?? Promise.resolve()).then(call);
+  await run.catch(() => undefined);
 }
 
 export function onSessionExpired(cb: () => void): () => void {
