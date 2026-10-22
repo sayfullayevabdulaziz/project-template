@@ -35,11 +35,11 @@ Copy `.env.example` to `.env` first; `APP_JWT_SECRET` has no default and must be
 
 One package per domain module under `src/app/<module>/`, each exposing one router per surface.
 
-| Module | `models.py` | `schemas.py` | `service.py` | `api_admin.py` + `schemas_admin.py` | `api_public.py` + `schemas_public.py` | `tasks.py` |
-| ------ | ----------- | ------------ | ------------ | ----------------------------------- | ------------------------------------- | ---------- |
-| auth   | yes         | yes          | yes          | yes                                 | yes                                   | yes        |
-| users  | yes         | yes          | yes          | yes                                 | yes                                   | yes        |
-| items  | yes         | yes          | yes          | yes                                 | yes                                   | no         |
+| Module | `models.py` | `schemas.py` | `repository.py` | `service.py` | `api_admin.py` + `schemas_admin.py` | `api_public.py` + `schemas_public.py` | `tasks.py` |
+| ------ | ----------- | ------------ | --------------- | ------------ | ----------------------------------- | ------------------------------------- | ---------- |
+| auth   | yes         | yes          | yes             | yes          | yes                                 | yes                                   | yes        |
+| users  | yes         | yes          | yes             | yes          | yes                                 | yes                                   | yes        |
+| items  | yes         | yes          | yes             | yes          | yes                                 | yes                                   | no         |
 
 - `core/` holds shared plumbing: `config` (Settings), `db` (engine, session, UUIDv7 pk), `deps`
   (auth and session dependencies), `errors` (problem+json), `security` (hashing, JWT),
@@ -57,6 +57,8 @@ One package per domain module under `src/app/<module>/`, each exposing one route
 ## Conventions
 
 - Business logic lives only in `service.py`. Routers parse input, call a service, shape output.
+- SQLAlchemy queries live only in `<module>/repository.py`. Services take repository Protocols, never touch the session.
+- Services are classes built by `<Mod>ServiceDep`; routers inject the service, not the session (exception: a router that enqueues a task also takes `SessionDep` and commits first, as `users/api_public.register` does).
 - Each surface has its own schemas in `<module>/schemas_<surface>.py`, imported only by that
   surface's `api_<surface>.py` and `schemas_<surface>.py`. `<module>/schemas.py` holds field types
   and classes used by two or more surfaces. Services take plain values, never a surface schema.
@@ -64,7 +66,7 @@ One package per domain module under `src/app/<module>/`, each exposing one route
 - operationId is `{tag}-{route name}` (`generate_unique_id`); the tag is the module name. Keep route names unique per module.
 - Primary keys are UUIDv7 (`uuid7_pk()`). Timestamps are timezone-aware UTC.
 - Errors are RFC 9457 `application/problem+json` through `core/errors.py`. Raise, do not hand-build responses.
-- Services raise domain errors (`NotFound`, `Conflict`, `Unauthorized`, `Forbidden`, `RateLimited`); handlers map them to HTTP.
+- Services raise domain errors (`NotFound`, `Conflict`, `Unauthorized`, `Forbidden`, `RateLimited`); handlers map them to HTTP. Repositories never raise them.
 - List endpoints use `core/pagination.py`: `limit` (1-100), `offset`, `sort` from an allow-list, `q`; they return `Page[T]`.
 - Throttle abuse-prone endpoints with `core/rate_limit.py` (Redis, per IP or per IP and email).
 - Commit the database transaction before enqueueing a taskiq task, so the worker sees the row.
@@ -84,7 +86,8 @@ Tests are the spec. Write the failing test first, then the code.
 - Guard tests iterate `SURFACES`, so a new module or route is checked automatically.
 - Background tasks run on taskiq `InMemoryBroker` in tests; no worker process is needed.
 - Fixtures live in `tests/conftest.py`: `session`, `app`, `anon_client`, `user_client`, `admin_client`, `make_user`.
-- A feature needs a service test and an endpoint test for each surface it exposes.
+- Service tests use the in-memory fakes in `tests/fakes.py`. Repository tests (`tests/<module>/test_repository.py`) run on Postgres and cover search, sort, locks and unique races.
+- A feature needs a service test, a repository test and an endpoint test for each surface it exposes.
 - Run one file with `uv run pytest tests/<file>.py -q` while iterating, then `make check` before committing.
 
 ## Definition of done

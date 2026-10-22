@@ -8,7 +8,7 @@ You review diffs in this FastAPI backend. Run `git diff main...HEAD` (and `git d
 
 Checklist:
 
-1. Logic outside services. Routers (`api_<surface>.py`) only parse, call `service.py`, and shape the response. Business rules, queries and transactions belong in the service.
+1. Logic outside services, queries outside repositories. Routers only parse, call the service and shape the response. Business rules belong in the service; SQLAlchemy queries only in `repository.py`; a service importing `sqlalchemy` is a finding.
 2. Admin fields leaking into public schemas. Public schemas must be separate classes that omit admin-only and internal fields (ids of other tenants, audit columns, hashes, roles). Check `schemas_public.py`, any class added to a shared `schemas.py`, and services that accept a schema object instead of plain values.
 3. Authz. Every admin route sits behind `require_admin` (the `protected` router in `app/api/admin.py`). The only exceptions are login, refresh and logout. Check new routers are included in `protected`, not directly in `router`.
 4. Async correctness. No blocking calls (`time.sleep`, `requests`, sync file or DB I/O, CPU-heavy hashing) on the event loop. Every coroutine is awaited. No sync SQLAlchemy sessions.

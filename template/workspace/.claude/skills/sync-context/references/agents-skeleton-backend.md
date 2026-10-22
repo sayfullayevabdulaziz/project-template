@@ -33,14 +33,14 @@ Domain modules own models, business logic and invariants. Surfaces own HTTP shap
 | `items` | `items/api_admin.py` | `items/api_public.py` |
 
 - `src/app/api/surfaces.py` is the surface registry: `(name, prefix, router)`. `main.py` mounts from it.
-- Business logic lives only in `<module>/service.py`. Surface files parse, authorize, call the service, map to that surface's schema.
+- Business logic lives only in `<module>/service.py`; queries in `<module>/repository.py`. Surface files parse, authorize, call the service, map to that surface's schema.
 - Schemas are per surface, next to the router: `<module>/schemas_<surface>.py` (`ItemAdmin`, `ItemPublic`). A field reaches the public surface only by being added to the public schema. `<module>/schemas.py` holds only field types and classes shared by two or more surfaces.
 - `src/app/core/` holds config, db, security, deps, errors, logging, telemetry and the broker.
 - `openapi/` holds the committed specs. Clients copy them.
 
 ## Conventions
 
-- No repository layer. The service talks to SQLAlchemy.
+- Queries live only in `<module>/repository.py`; services take repository Protocols and never touch the session.
 - Every timestamp is UTC. Money is integer minor units. IDs are UUIDv7.
 - Errors are RFC 9457 problem+json from domain exceptions.
 - Tasks are typed and idempotent.
@@ -49,7 +49,7 @@ Domain modules own models, business logic and invariants. Surfaces own HTTP shap
 
 ## Testing
 
-- pytest with a testcontainers Postgres and a savepoint-per-test session.
+- pytest with a testcontainers Postgres and a savepoint-per-test session; service tests use in-memory fakes.
 - Tests per module per surface: `tests/<module>/test_api_admin.py`, `test_api_public.py`.
 - `tests/test_surfaces.py` guards the registry: admin routes reject anonymous and non-admin callers, `public.json` has no admin path.
 - Add a test with every route or rule you add.

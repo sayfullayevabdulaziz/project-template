@@ -3,11 +3,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.core.db import SessionDep
 from app.core.deps import CurrentUser
 from app.core.pagination import ListParams, list_params
-from app.users import service
 from app.users.schemas_admin import UserAdmin, UserAdminPage, UserAdminUpdate
+from app.users.service import UserServiceDep
 
 router = APIRouter(
     prefix="/users",
@@ -18,7 +17,6 @@ router = APIRouter(
     },
 )
 
-Session = SessionDep
 Params = Annotated[ListParams, Depends(list_params(frozenset({"email", "created_at"})))]
 
 
@@ -29,8 +27,8 @@ async def me(user: CurrentUser) -> UserAdmin:
 
 
 @router.get("", name="list")  # function is list_users: `list` would shadow the builtin
-async def list_users(session: Session, params: Params) -> UserAdminPage:
-    items, total = await service.list_users(session, params)
+async def list_users(users: UserServiceDep, params: Params) -> UserAdminPage:
+    items, total = await users.list_users(params)
     return UserAdminPage(items=[UserAdmin.model_validate(u) for u in items], total=total)
 
 
@@ -42,7 +40,7 @@ async def list_users(session: Session, params: Params) -> UserAdminPage:
     },
 )
 async def update(
-    user_id: UUID, body: UserAdminUpdate, session: Session, actor: CurrentUser
+    user_id: UUID, body: UserAdminUpdate, users: UserServiceDep, actor: CurrentUser
 ) -> UserAdmin:
-    user = await service.admin_update(session, actor, user_id, body.role, body.is_active)
+    user = await users.admin_update(actor, user_id, body.role, body.is_active)
     return UserAdmin.model_validate(user)

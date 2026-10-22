@@ -1,134 +1,75 @@
-from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
 from uuid import uuid7
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFound
 from app.core.pagination import ListParams
-from app.items import service
-from app.items.models import Item
+from app.items.service import ItemService
 from app.users.models import User
+from tests.fakes import FakeItemRepository
 
-MakeUser = Callable[..., Awaitable[User]]
-
-
-def params(*, offset: int = 0, sort: str = "-created_at", q: str | None = None) -> ListParams:
-    return ListParams(limit=20, offset=offset, sort=sort, q=q)
+actor = User(id=uuid7(), email="a@x.com", password_hash="h")
 
 
-async def seed(session: AsyncSession, actor: User, *names: str, published: bool = True) -> None:
-    # now() is the transaction start time, so stagger created_at to make order deterministic
-    base = datetime(2026, 1, 1, tzinfo=UTC)
-    for i, name in enumerate(names):
-        session.add(
-            Item(
-                name=name,
-                is_published=published,
-                created_by_id=actor.id,
-                created_at=base + timedelta(minutes=i),
-            )
-        )
-    await session.flush()
+def make_service() -> ItemService:
+    return ItemService(FakeItemRepository())
 
 
-async def test_create_sets_creator_and_defaults_unpublished(
-    session: AsyncSession, make_user: MakeUser
-):
-    actor = await make_user()
-    item = await service.create(session, actor, name="a")
+async def test_create_sets_creator_and_defaults_unpublished():
+    item = await make_service().create(actor, name="a")
     assert item.created_by_id == actor.id
     assert item.is_published is False
     assert item.description is None
     assert item.created_at is not None
 
 
-async def test_update_partial_keeps_other_fields(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    item = await service.create(session, actor, name="a", description="d")
-    updated = await service.update(session, item.id, {"is_published": True})
+async def test_update_partial_keeps_other_fields():
+    svc = make_service()
+    item = await svc.create(actor, name="a", description="d")
+    updated = await svc.update(item.id, {"is_published": True})
     assert (updated.name, updated.description, updated.is_published) == ("a", "d", True)
 
 
-async def test_update_can_set_description_null(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    item = await service.create(session, actor, name="a", description="d")
-    updated = await service.update(session, item.id, {"description": None})
+async def test_update_can_set_description_null():
+    svc = make_service()
+    item = await svc.create(actor, name="a", description="d")
+    updated = await svc.update(item.id, {"description": None})
     assert updated.description is None
     assert updated.name == "a"
 
 
-async def test_delete_hard_deletes(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    item = await service.create(session, actor, name="a")
-    await service.delete(session, item.id)
-    assert await session.get(Item, item.id) is None
-    with pytest.raises(NotFound):
-        await service.get(session, item.id)
-    with pytest.raises(NotFound):
-        await service.delete(session, uuid7())
+async def test_update_ignores_null_name():
+    svc = make_service()
+    item = await svc.create(actor, name="a")
+    updated = await svc.update(item.id, {"name": None})
+    assert updated.name == "a"
 
 
-async def test_list_published_only_flag(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    await seed(session, actor, "pub")
-    await seed(session, actor, "draft", published=False)
-    rows, total = await service.list_items(session, params())
-    assert (len(rows), total) == (2, 2)
-    rows, total = await service.list_items(session, params(), published_only=True)
-    assert [r.name for r in rows] == ["pub"]
+async def test_delete_hard_deletes():
+    repo = FakeItemRepository()
+    svc = ItemService(repo)
+    item = await svc.create(actor, name="a")
+    await svc.delete(item.id)
+    assert await repo.get(item.id) is None
+    with pytest.raises(NotFound):
+        await svc.get(item.id)
+    with pytest.raises(NotFound):
+        await svc.delete(uuid7())
+
+
+async def test_get_published_only_hides_unpublished():
+    svc = make_service()
+    item = await svc.create(actor, name="a")
+    assert (await svc.get(item.id)).id == item.id
+    with pytest.raises(NotFound):
+        await svc.get(item.id, published_only=True)
+
+
+async def test_list_published_only_passes_filter():
+    svc = make_service()
+    pub = await svc.create(actor, name="pub", is_published=True)
+    await svc.create(actor, name="draft")
+    p = ListParams(limit=20, offset=0, sort="-created_at", q=None)
+    rows, total = await svc.list_items(p, published_only=True)
+    assert rows == [pub]
     assert total == 1
-
-
-async def test_get_published_only_hides_unpublished(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    item = await service.create(session, actor, name="a")
-    assert (await service.get(session, item.id)).id == item.id
-    with pytest.raises(NotFound):
-        await service.get(session, item.id, published_only=True)
-
-
-async def test_list_q_escapes_wildcards(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    await seed(session, actor, "100%", "abc")
-    rows, total = await service.list_items(session, params(q="%"))
-    assert [r.name for r in rows] == ["100%"]
-    assert total == 1
-    rows, total = await service.list_items(session, params(q="_"))
-    assert (rows, total) == ([], 0)
-    rows, _ = await service.list_items(session, params(q="ABC"))
-    assert [r.name for r in rows] == ["abc"]
-
-
-async def test_list_sort_name_and_default_created_desc(session: AsyncSession, make_user: MakeUser):
-    actor = await make_user()
-    await seed(session, actor, "b", "c", "a")
-    default, _ = await service.list_items(session, params())
-    assert [r.name for r in default] == ["a", "c", "b"]
-    by_name, _ = await service.list_items(session, params(sort="name"))
-    assert [r.name for r in by_name] == ["a", "b", "c"]
-
-
-async def test_offset_past_total_returns_empty_with_total(
-    session: AsyncSession, make_user: MakeUser
-):
-    actor = await make_user()
-    await seed(session, actor, "a", "b")
-    rows, total = await service.list_items(session, params(offset=50))
-    assert (rows, total) == ([], 2)
-
-
-@pytest.mark.parametrize("sort", ["name", "-name", "created_at", "-created_at"])
-async def test_ties_page_deterministically(session: AsyncSession, make_user: MakeUser, sort: str):
-    actor = await make_user()
-    same = datetime(2026, 1, 1, tzinfo=UTC)
-    session.add_all(Item(name="same", created_by_id=actor.id, created_at=same) for _ in range(10))
-    await session.flush()
-    ids: list = []
-    for offset in range(10):
-        page = ListParams(limit=1, offset=offset, sort=sort, q=None)
-        rows, total = await service.list_items(session, page)
-        assert total == 10
-        ids += [r.id for r in rows]
-    assert len(set(ids)) == 10
