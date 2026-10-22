@@ -32,11 +32,13 @@ function expire(): void {
 
 async function doRefresh(startEpoch: number): Promise<string | null> {
   const { data, response } = await authRefresh();
+  // Session changed (logout/login) while in flight: neither a 200 nor a 401 may touch it.
+  if (epoch !== startEpoch) return null;
   if (response?.status === 401) {
     expire();
     return null;
   }
-  if (!data || epoch !== startEpoch) return null;
+  if (!data) return null;
   token = data.access_token;
   return token;
 }
@@ -63,6 +65,7 @@ export async function ensureSession(): Promise<boolean> {
 
 export async function login(creds: LoginRequest): Promise<void> {
   const { data } = await authLogin({ body: creds, throwOnError: true });
+  epoch++; // discard any refresh started before or during login
   token = data.access_token;
 }
 

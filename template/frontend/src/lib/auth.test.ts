@@ -48,6 +48,20 @@ function itemsNeedingRefreshedToken() {
   return hits;
 }
 
+/** Refresh handler held at a gate: `started` resolves on arrival, `release` lets `respond` answer. */
+function gatedRefresh(respond: () => Response) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let arrived!: () => void;
+  const started = new Promise<void>((resolve) => (arrived = resolve));
+  refreshCounter(async () => {
+    arrived();
+    await gate;
+    return respond();
+  });
+  return { started, release };
+}
+
 describe('auth', () => {
   afterEach(() => {
     Reflect.deleteProperty(navigator, 'locks');
@@ -220,28 +234,57 @@ describe('auth', () => {
   });
 
   it('logout during an in-flight refresh discards the refreshed token', async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    let arrived!: () => void;
-    const started = new Promise<void>((resolve) => (arrived = resolve));
-    refreshCounter(async () => {
-      arrived();
-      await gate;
-      return HttpResponse.json({ access_token: 't-refreshed', token_type: 'bearer' });
-    });
+    const refresh = gatedRefresh(() =>
+      HttpResponse.json({ access_token: 't-refreshed', token_type: 'bearer' }),
+    );
     const pending = refreshSession();
-    await started;
+    await refresh.started;
     await logout();
-    release();
+    refresh.release();
     expect(await pending).toBeNull();
     expect(getAccessToken()).toBeNull();
   });
 
+  it('login during an in-flight refresh that answers 401 keeps the new session', async () => {
+    const refresh = gatedRefresh(unauthorized);
+    const expired = vi.fn();
+    onSessionExpired(expired);
+    const pending = refreshSession();
+    await refresh.started;
+    await login({ email: 'a@example.com', password: 'pw' });
+    refresh.release();
+    expect(await pending).toBeNull();
+    expect(getAccessToken()).toBe('t-login');
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('login during an in-flight refresh discards the old session token', async () => {
+    const refresh = gatedRefresh(() =>
+      HttpResponse.json({ access_token: 't-old', token_type: 'bearer' }),
+    );
+    const pending = refreshSession();
+    await refresh.started;
+    await login({ email: 'a@example.com', password: 'pw' });
+    refresh.release();
+    expect(await pending).toBeNull();
+    expect(getAccessToken()).toBe('t-login');
+  });
+
   it('uses navigator.locks when available', async () => {
-    const request = vi.fn((_name: string, cb: () => Promise<unknown>) => cb());
+    let releaseLock!: () => void;
+    const request = vi.fn(
+      (_name: string, cb: () => Promise<unknown>) =>
+        new Promise((resolve) => (releaseLock = () => resolve(cb()))),
+    );
     Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true });
-    refreshCounter();
-    expect(await refreshSession()).toBe('t-refreshed');
+    const refresh = refreshCounter();
+    const pending = refreshSession();
+    // Long enough for an unlocked refresh to reach the handler.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(refresh.n).toBe(0);
+    releaseLock();
+    expect(await pending).toBe('t-refreshed');
+    expect(refresh.n).toBe(1);
     expect(request).toHaveBeenCalledWith('admin-auth-refresh', expect.any(Function));
 
     Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true });
