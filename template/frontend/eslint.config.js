@@ -22,6 +22,16 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    // TanStack Router's redirect() is thrown by design.
+    files: ['src/routes/**'],
+    rules: {
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        { allow: [{ from: 'package', package: '@tanstack/router-core', name: 'Redirect' }] },
+      ],
+    },
+  },
+  {
     // shadcn output is vendored: do not police it.
     files: ['src/components/ui/**', 'src/hooks/use-mobile.ts'],
     rules: { 'react-hooks/set-state-in-effect': 'off' },
